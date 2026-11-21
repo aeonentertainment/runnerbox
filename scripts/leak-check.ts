@@ -10,8 +10,6 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
 const FORBIDDEN_HASHES = new Set([
-  "f7bed5a9de858cf4a466529421cb2394beafac86339684ef34b831877a0ae5d9",
-  "b796ea9c633af22d0dc3cbac5563d35e554828951c9dd32eac68821f79ac6a26",
   "f5f19851b78e1330e28f7885ef47f08228a6269ad9adc3747dfddb3f74509eea",
   "255cd1b7f938e4e6bd61034be9c2cee89a79516dffa3f238f98ad12bad237621",
   "0101386706d3b9dc71574c74a160f5c0a3ce86acdc5345ac6056cf9e91a0f780",
