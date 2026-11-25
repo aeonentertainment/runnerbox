@@ -1,3 +1,4 @@
+import { opensInBrowser } from "@runnerbox/client-runtime";
 import type { PullRequest, Review, ReviewsView } from "@runnerbox/contracts";
 import { useState } from "react";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard.ts";
@@ -65,7 +66,14 @@ export function PullReview({ pull, environmentId, view, start, stop }: Props) {
             <span>{model}</span>
             {review.finishedAt ? <span>took {formatDuration(Date.parse(review.finishedAt) - Date.parse(review.startedAt))}</span> : null}
             <span className="font-mono">{review.headSha.slice(0, 7)}</span>
-            <span>held here, posted nowhere</span>
+            {/* The address is the server's word, so it's a link only when it's a GitHub page. */}
+            {review.comment && opensInBrowser(review.comment.url) ? (
+              <a href={review.comment.url} target="_blank" rel="noreferrer noopener" className="text-foreground underline-offset-4 hover:underline">
+                posted on the pull request
+              </a>
+            ) : (
+              <span>{review.commentProblem ?? "held here, not posted"}</span>
+            )}
           </p>
         </>
       ) : (

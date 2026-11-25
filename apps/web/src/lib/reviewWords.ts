@@ -1,6 +1,6 @@
 import type { Review, ReviewSummary } from "@runnerbox/contracts";
 
-// Reviews in the owner's words. A review that's done was posted nowhere, so its findings are held.
+// Reviews in the owner's words. A review that's done has its findings held here, whether or not it was also posted on the pull request.
 
 export const going = (review: { readonly state: ReviewSummary["state"] } | undefined) => review?.state === "queued" || review?.state === "running";
 

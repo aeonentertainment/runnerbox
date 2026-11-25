@@ -10,9 +10,10 @@ import type { RootSearch } from "../../lib/search.ts";
 const link = "text-foreground underline-offset-4 hover:underline";
 const words = (cause: unknown) => (cause instanceof Error ? cause.message : "That didn't work.");
 
-// Reviews: which repositories are read, and the model that reviews. The sign-in they read through is GitHub's page.
+// Reviews: which repositories are read, whether their reviews are posted on the pull request, and
+// the model that reviews. The sign-in they read through is GitHub's page.
 export function ReviewsSettings() {
-  const { view, available, setRepo, setModel } = useReviews();
+  const { view, available, posting, setRepo, setPost, setModel } = useReviews();
   const [error, setError] = useState<string | null>(null);
   if (!available) return <SettingsPageContainer><SettingsIntro>This server is older than reviews. Update it under About.</SettingsIntro></SettingsPageContainer>;
   if (view === null) return null;
@@ -24,7 +25,7 @@ export function ReviewsSettings() {
   return (
     <SettingsPageContainer>
       <SettingsIntro>
-        Runnerbox reads the open pull requests on the repositories you turn on, through the server's sign-in to GitHub. A pull request opened after that is reviewed on its own, and again on every push once it's quiet for a minute. Drafts, bots' and forks' are left for you to ask. Findings show under Reviews and are posted nowhere.
+        Runnerbox reads the open pull requests on the repositories you turn on, through the server's sign-in to GitHub. A pull request opened after that is reviewed on its own, and again on every push once it's quiet for a minute. Drafts, bots' and forks' are left for you to ask. Findings show under Pull requests, and on the pull request itself where you turn that on below.
       </SettingsIntro>
       {app === null ? (
         <SettingsIntro>
@@ -53,6 +54,21 @@ export function ReviewsSettings() {
             ) : null}
             {error ? <p className="px-3 py-3 text-destructive text-xs sm:px-4">{error}</p> : null}
           </SettingsSection>
+          {/* Only the repositories being reviewed can post, and only a server that knows how. */}
+          {posting && view.repos.some(({ review }) => review) ? (
+            <SettingsSection title="Post on the pull request">
+              {view.repos
+                .filter(({ review }) => review)
+                .map(({ repo, post }) => (
+                  <SettingsRow
+                    key={repo}
+                    title={repo}
+                    description="Off, a review stays in RunnerBox. On, a finished review is left on the pull request as one comment, under your GitHub name, ending with “Posted by RunnerBox”. The next review rewrites it."
+                    control={<Switch checked={post === true} disabled={!canConfigure} onCheckedChange={(next) => act(setPost(repo, next))} aria-label={`Post reviews on ${repo}`} />}
+                  />
+                ))}
+            </SettingsSection>
+          ) : null}
           {view.models !== undefined && view.model !== undefined ? (
             <SettingsSection title="Reviewer">
               <SettingsRow
