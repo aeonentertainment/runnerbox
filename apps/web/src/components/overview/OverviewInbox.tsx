@@ -22,8 +22,8 @@ function Row({ title, meta, status, link }: { title: string; meta: string; statu
   );
 }
 
-// The Inbox's first rows, in its order: what needs the owner, most costly first, then their reviews
-// that found something. Each row opens in the Inbox.
+// The first notifications, in their order: what's wrong, most costly first, then the owner's reviews
+// that found something. Each row opens in full.
 export function OverviewInbox({ rows, machines }: { rows: InboxRows; machines: ReadonlyArray<InboxMachine> }) {
   const labelOf = (environmentId: string) => machines.find((machine) => machine.environmentId === environmentId)?.label ?? "";
   const waiting = rows.needsYou.length + rows.reviews.length;
@@ -34,13 +34,10 @@ export function OverviewInbox({ rows, machines }: { rows: InboxRows; machines: R
     <section>
       <div className="flex items-baseline justify-between pb-1.5">
         <h2 className="font-semibold">
-          Inbox {waiting > 0 ? <span className="pl-1 font-normal text-muted-foreground tabular-nums">{waiting}</span> : null}
+          Notifications {waiting > 0 ? <span className="pl-1 font-normal text-muted-foreground tabular-nums">{waiting}</span> : null}
         </h2>
-        <Link to="/inbox" search={keep} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">
-          Open the inbox
-        </Link>
       </div>
-      {waiting === 0 ? <p className="py-1 text-muted-foreground">Nothing needs you.</p> : null}
+      {waiting === 0 ? <p className="py-1 text-muted-foreground">Nothing is wrong.</p> : null}
       <ul>
         {items.map((row) => (
           <Row

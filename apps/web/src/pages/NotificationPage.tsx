@@ -1,7 +1,6 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { CustomSnoozeDialogHost } from "../components/inbox/CustomSnoozeDialog.tsx";
 import { InboxItemView } from "../components/inbox/InboxItemView.tsx";
-import { InboxList } from "../components/inbox/InboxList.tsx";
 import { PageBar } from "../components/PageBar.tsx";
 import { RangeMenu } from "../components/RangeMenu.tsx";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty.tsx";
@@ -9,21 +8,18 @@ import { useActiveEnvironment } from "../hooks/useEnvironment.ts";
 import { useInboxEverywhere } from "../hooks/useInboxEverywhere.ts";
 import { useInboxWrites } from "../hooks/useInboxWrites.ts";
 import { findRow } from "../lib/inboxRows.ts";
-import type { RootSearch } from "../lib/search.ts";
-import { cn } from "../lib/utils.ts";
 
-const keep = (previous: RootSearch) => previous;
-
-// The Inbox tab, across every connected machine: the list on the left and the chosen item in full
-// on the right. With none chosen, the costliest is shown. Narrow, it's one or the other, the list
-// until an item is opened.
-export function InboxPage() {
+// One notification in full, from any connected machine. The list they're picked from is the
+// sidebar's Notifications row; with none picked, the costliest is shown.
+export function NotificationPage() {
   const { itemId } = useParams({ strict: false });
   const { machines, rows, loaded } = useInboxEverywhere();
   const writes = useInboxWrites(machines);
   const activeId = useActiveEnvironment().environment?.environmentId;
+  const shownId = itemId ?? rows.needsYou[0]?.id;
+  const shown = shownId === undefined ? undefined : findRow(rows.all, shownId, activeId);
   const bar = (
-    <PageBar title="Inbox">
+    <PageBar title={shown?.item.title ?? "Notifications"} trail={shown ? ["Notifications"] : []}>
       <RangeMenu />
     </PageBar>
   );
@@ -46,31 +42,28 @@ export function InboxPage() {
       </>
     );
   }
-  const shownId = itemId ?? rows.needsYou[0]?.id;
-  const shown = shownId === undefined ? undefined : findRow(rows.all, shownId, activeId);
   return (
     <>
       {bar}
       <div className="flex min-h-0 flex-1">
-        <div className={cn("topbar-scroll-fade min-h-0 w-full shrink-0 overflow-y-auto md:block md:w-72 lg:w-80", itemId ? "hidden" : "block")}>
-          <InboxList rows={rows} machines={machines} selectedId={shown?.id} />
-        </div>
-        <div className={cn("min-h-0 min-w-0 flex-1 flex-col", itemId ? "flex" : "hidden md:flex")}>
-          {itemId ? (
-            <Link to="/inbox" search={keep} className="px-6 pt-3 text-muted-foreground text-xs hover:text-foreground md:hidden">
-              Inbox
-            </Link>
-          ) : null}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {shown ? (
             <InboxItemView row={shown} machines={machines} writes={writes} />
           ) : itemId ? (
             <Empty>
               <EmptyHeader>
-                <EmptyTitle>This item isn't in the inbox any more</EmptyTitle>
+                <EmptyTitle>This notification is gone</EmptyTitle>
                 <EmptyDescription>It may have been fixed, or fallen outside the time range.</EmptyDescription>
               </EmptyHeader>
             </Empty>
-          ) : null}
+          ) : (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Nothing is wrong</EmptyTitle>
+                <EmptyDescription>A notification shows here when a job, a runner or a wait needs a look.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
         </div>
         <CustomSnoozeDialogHost />
       </div>

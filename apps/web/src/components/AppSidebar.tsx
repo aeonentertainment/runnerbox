@@ -1,6 +1,6 @@
 import { isInboxItemHidden } from "@runnerbox/contracts";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Gauge, GitPullRequest, Inbox, LayoutDashboard, ListTree, MessageSquareText, Server, Settings } from "lucide-react";
+import { Gauge, GitPullRequest, LayoutDashboard, ListTree, MessageSquareText, Server, Settings } from "lucide-react";
 import type * as React from "react";
 import { useRange } from "../hooks/useRange.ts";
 import { useAtom, useAtomValue } from "@effect/atom-react";
@@ -15,6 +15,7 @@ import { cn } from "../lib/utils.ts";
 import { EnvironmentMenu } from "./EnvironmentMenu.tsx";
 import { railFade } from "./railFade.ts";
 import { useChatDockAvailable } from "./ChatDock.tsx";
+import { NotificationsRow } from "./NotificationsRow.tsx";
 import { SidebarUpdateSlot } from "./SidebarUpdateSlot.tsx";
 import { Kbd } from "./ui/kbd.tsx";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./ui/sidebar.tsx";
@@ -27,7 +28,7 @@ type Product = "ci" | "review";
 const productOf = (path: string): Product => (path === "/pulls" || path.startsWith("/pulls/") ? "review" : "ci");
 const PRODUCT_HOME = { ci: "/", review: "/pulls" } as const;
 
-type Page = { readonly to: "/" | "/inbox" | "/runs" | "/pulls" | "/speed" | "/runners" | "/settings"; readonly label: string; readonly icon: React.ComponentType; readonly count?: string | null; readonly alert?: boolean };
+type Page = { readonly to: "/" | "/runs" | "/pulls" | "/speed" | "/runners" | "/settings"; readonly label: string; readonly icon: React.ComponentType; readonly count?: string | null; readonly alert?: boolean };
 
 // One row per page, as in Codex: an icon, its name and a count. The pages' own lists live on the
 // pages. Collapsed to its rail, a row keeps its icon, a tooltip and, for Inbox, a dot.
@@ -139,7 +140,7 @@ export function AppSidebar() {
         <SidebarMenu>
           {/* Left out where the dock would be empty: a page with no thread, on a server older than the chat. */}
           {chat ? <ChatRow /> : null}
-          <PageRow page={{ to: "/inbox", label: "Inbox", icon: Inbox, count: waiting > 0 ? String(waiting) : null, alert: waiting > 0 }} path={path} />
+          <NotificationsRow count={waiting} />
           <PageRow page={{ to: "/settings", label: "Settings", icon: Settings }} path={path} />
         </SidebarMenu>
         <SidebarUpdateSlot />

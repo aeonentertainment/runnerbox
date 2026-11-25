@@ -1,7 +1,7 @@
 import { createHashHistory, createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 import { AppShell } from "./components/AppShell.tsx";
 import { parseSearch } from "./lib/search.ts";
-import { InboxPage } from "./pages/InboxPage.tsx";
+import { NotificationPage } from "./pages/NotificationPage.tsx";
 import { OverviewPage } from "./pages/OverviewPage.tsx";
 import { PullRequestsPage } from "./pages/PullRequestsPage.tsx";
 import { RunnersPage } from "./pages/RunnersPage.tsx";
@@ -37,8 +37,8 @@ const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/set
 const routeTree = rootRoute.addChildren([
   // Overview opens the app.
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: OverviewPage }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/inbox", component: InboxPage }),
-  createRoute({ getParentRoute: () => rootRoute, path: "/inbox/$itemId", component: InboxPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/inbox", component: NotificationPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/inbox/$itemId", component: NotificationPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/runs", component: RunsPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/runs/$jobId", component: RunPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/pulls", component: PullRequestsPage }),
