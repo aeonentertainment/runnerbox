@@ -51,7 +51,7 @@ export function RunPage() {
   return (
     <>
       {bar}
-      <ThreadColumn key={run.jobId} subject={{ _tag: "run", repo: run.repo, jobId: run.jobId }} placeholder="Ask about this run">
+      <ThreadColumn key={run.jobId} subject={{ _tag: "run", repo: run.repo, jobId: run.jobId }} title="This run" placeholder="Ask about this run">
         {(thread) => (
           <Reading.Root>
             <Reading.Header>

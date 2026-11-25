@@ -56,7 +56,7 @@ export function InboxItemView({ row, machines, writes }: { row: ItemRow; machine
   const where = rowWhere(row, label);
   return (
     <EnvironmentScope value={environmentId}>
-      <ThreadColumn key={`${environmentId}:${item.id}`} subject={{ _tag: "inbox", itemId: item.id }} placeholder="Ask about this">
+      <ThreadColumn key={`${environmentId}:${item.id}`} subject={{ _tag: "inbox", itemId: item.id }} title="This item" placeholder="Ask about this">
         {(thread) => (
           <Reading.Root className="gap-4">
             <Reading.Header>
