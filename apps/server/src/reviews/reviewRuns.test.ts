@@ -135,10 +135,14 @@ test("a finished review is posted on the pull request as one comment, which the 
   const { github, session, ended, close } = await start(REVIEW_SCRIPT);
   const review = () => session(ALL_SCOPES, (client) => client["reviews.start"]({ repo: "owner/name", number: 7 })).then(ended);
   try {
-    // Turning reviews on turned posting on with it.
+    // Turning reviews on didn't turn posting on: a first review is done and nothing is written.
     const status = await session(["history:read"], (client) => client["reviews.status"]());
     assert.ok(Exit.isSuccess(status));
-    assert.deepEqual(status.value.repos, [{ repo: "owner/name", review: true, post: true }]);
+    assert.deepEqual(status.value.repos, [{ repo: "owner/name", review: true, post: false }]);
+    const unposted = await review();
+    assert.deepEqual([unposted.state, unposted.comment, github.comments.length], ["done", undefined, 0]);
+    const on = await session(ALL_SCOPES, (client) => client["reviews.setPost"]({ repo: "owner/name", post: true }));
+    assert.ok(Exit.isSuccess(on) && on.value.repos[0]?.post === true);
 
     const first = await review();
     assert.deepEqual(first.comment, { id: 900, url: "https://github.com/owner/name/pull/7#issuecomment-900" });
@@ -156,12 +160,16 @@ test("a finished review is posted on the pull request as one comment, which the 
     const third = await review();
     assert.deepEqual([third.comment?.id, third.commentProblem], [902, undefined]);
 
-    // With posting off the review is still done, and nothing is written.
-    const off = await session(ALL_SCOPES, (client) => client["reviews.setPost"]({ repo: "owner/name", post: false }));
-    assert.ok(Exit.isSuccess(off) && off.value.repos[0]?.post === false);
+    // Turning reviews off and on again leaves posting off, so nothing is written unasked.
+    await session(ALL_SCOPES, (client) => client["reviews.setRepo"]({ repo: "owner/name", review: false }));
+    const again = await session(ALL_SCOPES, (client) => client["reviews.setRepo"]({ repo: "owner/name", review: true }));
+    assert.ok(Exit.isSuccess(again) && again.value.repos[0]?.post === false);
     const written = github.comments.length;
     const quiet = await review();
     assert.deepEqual([quiet.state, quiet.comment, github.comments.length], ["done", undefined, written]);
+    // Posting can't be turned on for a repository whose reviews are off.
+    const other = await session(ALL_SCOPES, (client) => client["reviews.setPost"]({ repo: "owner/other", post: true }));
+    assert.ok(Exit.isFailure(other));
 
     // A session that may not turn reviews on may not turn posting on either.
     const reader = await session(["history:read", "runners:read", "threads:operate"], (client) => client["reviews.setPost"]({ repo: "owner/name", post: true }));
@@ -171,31 +179,43 @@ test("a finished review is posted on the pull request as one comment, which the 
   }
 });
 
-test("what the reviewer wrote can't mention anyone, link anywhere or mark anything up in the comment posted under the owner's name", () => {
-  const finding = {
-    priority: "P1" as const,
-    title: "Ping @octocat and [click](https://example.com) <img src=x>",
-    path: "src/a b.ts",
-    startLine: 3,
-    endLine: 3,
-    body: "See https://example.com/x and www.example.com.\n\n# Not a heading\n**not bold** `not code`",
-    rule: "@everyone must review",
-    code: [{ line: 3, text: "const fence = \"```\";" }],
+test("what the reviewer wrote can't mention anyone, link anywhere, reference anything or mark anything up in the comment posted under the owner's name", () => {
+  const sha = "a".repeat(40);
+  const finding = (title: string, path: string, body: string) => ({ priority: "P1" as const, title, path, startLine: 3, endLine: 3, body, rule: "closes #1 and GH-2, @everyone", code: [{ line: 3, text: 'const fence = "```";' }] });
+  const review: Review = {
+    id: "r1", repo: "owner/name", number: 7, title: "t", author: "someone", branch: "b", base: "main", headSha: sha, additions: 1, deletions: 0, changedFiles: 1, state: "done", startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:01:00Z", model: "opus", costUsd: null, filesRead: 0, score: 2, impact: "high",
+    reach: "Touches @team/core, _www.example.com and commit d0dd1f61b33d64e2.",
+    verdict: "1. Hold it\n===\n<!-- hidden --> **bold**",
+    problem: null,
+    findings: [
+      finding('A <a href="//example.com">x</a> </summary></details> <img src=x>', "src/a b.ts", "See https://example.com/x.\n\n# Not a heading\n[click](https://example.com) `not code`"),
+      finding("closes its link", "x)(www.example.com/login", "ok"),
+      finding("climbs out", "../../../../someone/else/blob/main/README.md", "ok"),
+      finding("breaks the line", "src/Approved\n===\n1. one.ts", "ok"),
+    ],
   };
-  const review: Review = { id: "r1", repo: "owner/name", number: 7, title: "t", author: "someone", branch: "b", base: "main", headSha: "a".repeat(40), additions: 1, deletions: 0, changedFiles: 1, state: "done", startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:01:00Z", model: "opus", costUsd: null, filesRead: 0, score: 2, impact: "high", reach: "Touches @team/core.", verdict: "Hold it. <!-- hidden -->", findings: [finding], problem: null };
   const body = reviewComment(review);
-  // No "@" is followed by a name, and no address or "www." is left whole, so GitHub links neither.
-  assert.doesNotMatch(body, /@[A-Za-z]/);
-  assert.doesNotMatch(body.replace(`https://github.com/owner/name/blob/${"a".repeat(40)}/src/a%20b.ts#L3`, ""), /https?:\/\/|www\./);
-  // Their markup is escaped: no link, image, heading, bold, code span or comment of theirs survives.
-  assert.ok(body.includes("\\[click\\]\\(") && body.includes("\\<img src=x\\>") && body.includes("\\# Not a heading") && body.includes("\\*\\*not bold\\*\\*") && body.includes("\\`not code\\`") && body.includes("\\<\\!\\-\\- hidden"));
+  const ours = [`https://github.com/owner/name/blob/${sha}/src/a%20b.ts#L3`, `https://github.com/owner/name/blob/${sha}/x%29%28www.example.com/login#L3`];
+  // The only addresses left whole are the two links the server built itself, each inside the reviewed commit.
+  const rest = ours.reduce((text, url) => text.replace(url, ""), body);
+  assert.doesNotMatch(rest, /https?:\/\/|www\./i);
+  assert.equal(ours.every((url) => body.includes(`](${url})`)), true);
+  // A path that climbs out of the commit, or holds a line break, is text, not a link.
+  assert.doesNotMatch(body, /\]\([^)]*(someone\/else|Approved)/);
+  // Nothing GitHub links on its own is left whole: a name, an issue, or a commit's hash.
+  // The template's own character references, such as &#60;, aren't issue numbers.
+  assert.doesNotMatch(body.replace(/&#\d+;/g, ""), /@[A-Za-z]|#\d|GH-\d/i);
+  assert.doesNotMatch(rest.replaceAll(sha.slice(0, 7), ""), /[0-9a-f]{7}/i);
+  // In a paragraph their punctuation is escaped, so none of it is Markdown.
+  for (const escaped of ["\\#\u200b Not a heading", "\\[click\\]\\(", "\\`not code\\`", "\\*\\*bold\\*\\*", "1\\. Hold it \\=\\=\\=", "\\<\\!\\-\\- hidden"]) assert.ok(body.includes(escaped), escaped);
+  // In the template's own tag, where Markdown's escapes aren't read, a title's tags are character references.
+  const summary = /<summary><b>P1<\/b> (.*)<\/summary>/.exec(body)?.[1] ?? "";
+  assert.ok(summary.includes("&#60;a href&#61;&#34;") && !/[<>"\\]/.test(summary));
   // The excerpt's own backticks can't close its fence.
-  assert.ok(body.includes("````\nconst fence = \"```\";\n````"));
-  // The one link is ours, to the reviewed lines at the reviewed commit.
-  assert.ok(body.includes(`(https://github.com/owner/name/blob/${"a".repeat(40)}/src/a%20b.ts#L3)`));
-  // A review too long for GitHub says how many findings it left out.
-  const long = reviewComment({ ...review, findings: Array.from({ length: 40 }, () => ({ ...finding, body: "x ".repeat(2000) })) });
-  assert.ok(long.length < 65_536 && /\d+ more findings are in RunnerBox/.test(long));
+  assert.ok(body.includes('````\nconst fence = "```";\n````'));
+  // A finding too long for GitHub is left out, the ones that fit stay, and the comment says how many are missing.
+  const long = reviewComment({ ...review, findings: [finding("too long", "src/a.ts", "x ".repeat(40_000)), finding("fits", "src/b.ts", "ok")] });
+  assert.ok(long.length < 65_536 && long.includes("fits") && long.includes("1 more finding is in RunnerBox"));
 });
 
 test("a pull request open before reviews were turned on is left alone until it's reviewed once, and then every push is", async () => {

@@ -63,7 +63,7 @@ export function ReviewsSettings() {
                   <SettingsRow
                     key={repo}
                     title={repo}
-                    description="A finished review is left on the pull request as one comment, under your GitHub name, ending with “Posted by RunnerBox”. The next review rewrites it."
+                    description="Off, a review stays in RunnerBox. On, a finished review is left on the pull request as one comment, under your GitHub name, ending with “Posted by RunnerBox”. The next review rewrites it."
                     control={<Switch checked={post === true} disabled={!canConfigure} onCheckedChange={(next) => act(setPost(repo, next))} aria-label={`Post reviews on ${repo}`} />}
                   />
                 ))}

@@ -113,7 +113,7 @@ const make = Effect.gen(function* () {
   const gitFailure = <A>(result: GitResult<A>): Effect.Effect<A, ReviewFailed> => (result.ok ? Effect.succeed(result.value) : Effect.fail(new ReviewFailed({ why: result.why })));
 
   const decodeComment = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.Int, html_url: Schema.String }));
-  const COULD_NOT_POST = "GitHub didn't take the comment. The review is here, and the next one tries again.";
+  const COULD_NOT_POST = "This review couldn't be posted on the pull request. The next one tries again.";
 
   // Leaves the finished review on its pull request as one comment: the comment the pull request's
   // last posted review left is rewritten, so a pull request holds one, and a new one is made when
@@ -124,8 +124,11 @@ const make = Effect.gen(function* () {
     const body = { body: reviewComment(run.review) };
     const earlier = (yield* store.list(repo, number)).find((each) => each.id !== run.review.id && each.comment !== undefined)?.comment;
     const rewritten = earlier === undefined ? null : yield* Effect.promise(() => githubRequest(config.apiBase, "PATCH", `repos/${repo}/issues/comments/${earlier.id}`, token, body));
-    // Only a comment that's gone is replaced: any other refusal is told, not answered with a second comment.
-    const reply = rewritten === null || (rewritten.kind === "refused" && rewritten.status === 404) ? yield* Effect.promise(() => githubRequest(config.apiBase, "POST", `repos/${repo}/issues/${number}/comments`, token, body)) : rewritten;
+    // A comment that's gone, or that this sign-in may not rewrite, such as one left by whoever was
+    // signed in before, is replaced by a new one. GitHub not answering, or not taking the token, is
+    // told, not answered with a second comment.
+    const replace = rewritten !== null && (rewritten.kind === "refused" ? rewritten.status === 404 : rewritten.kind === "error" && (rewritten.status === 403 || rewritten.status === 410 || rewritten.status === 422));
+    const reply = rewritten === null || replace ? yield* Effect.promise(() => githubRequest(config.apiBase, "POST", `repos/${repo}/issues/${number}/comments`, token, body)) : rewritten;
     const posted = reply.kind === "ok" ? decodeComment(reply.body) : Option.none();
     yield* keep(run, Option.isSome(posted) ? { comment: { id: posted.value.id, url: posted.value.html_url } } : { commentProblem: COULD_NOT_POST });
   });
@@ -188,7 +191,9 @@ const make = Effect.gen(function* () {
       const findings = yield* Effect.forEach(submitted.findings, (finding) => excerpt(reading, finding));
       yield* keep(run, { state: "done", finishedAt: yield* nowIso, costUsd, filesRead: reading.opened.size, score: submitted.score, impact: submitted.impact, reach: submitted.reach, verdict: submitted.verdict, findings });
       // After the review is kept as done, so a comment that can't be posted doesn't cost the review.
-      yield* post(run, token).pipe(Effect.catch(() => keep(run, { commentProblem: COULD_NOT_POST }).pipe(Effect.ignore)));
+      // Uninterruptible, so a stop or the time limit can't land between GitHub taking the comment
+      // and its ID being kept, which would leave a second comment for the next review to make.
+      yield* Effect.uninterruptible(post(run, token).pipe(Effect.catch(() => keep(run, { commentProblem: COULD_NOT_POST }).pipe(Effect.ignore))));
     }).pipe(Effect.scoped, Effect.timeoutOrElse({ duration: REVIEW_LIMIT, orElse: () => Effect.fail(new ReviewFailed({ why: "The review took longer than 20 minutes and was stopped." })) }));
 
   // However the work ended, the review says so. A stop by the server leaves it to read as cut short.

@@ -28,8 +28,8 @@ import * as ReviewStore from "./ReviewStore.ts";
 // head commit's checks (PullChecks.ts).
 
 // `since` is when each repository's reviews were turned on, which decides the pull requests reviewed unasked.
-// `post` is the repositories whose reviews are posted on their pull requests. A file from before
-// posting has none, so a repository already on posts nothing until its owner says so.
+// `post` is the repositories whose reviews are posted on their pull requests. Turning reviews on
+// never adds one: a comment under the owner's name is their own choice, made with its own switch.
 const SettingsFile = Schema.Struct({ v: Schema.Literal(1), repos: Schema.Array(Schema.String), model: Schema.optionalKey(Schema.String), since: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)), post: Schema.optionalKey(Schema.Array(Schema.String)) });
 type SettingsFile = typeof SettingsFile.Type;
 const decodeFile = Schema.decodeUnknownEffect(Schema.fromJsonString(SettingsFile));
@@ -173,10 +173,8 @@ const make = Effect.gen(function* () {
         // Turning it on again starts the clock again; a repository already on keeps its own.
         const { [repo]: was, ...since } = file.since ?? {};
         const now = new Date(yield* Clock.currentTimeMillis).toISOString();
-        // A repository turned on from here posts its reviews, as a reviewer that's switched on is expected to.
-        // One already on keeps what it had, and one turned off posts nothing.
-        const posting = (file.post ?? []).filter((each) => each !== repo);
-        const post = review ? (file.repos.includes(repo) ? (file.post ?? []) : [...posting, repo].toSorted()) : posting;
+        // Turning reviews off turns posting off with them, so turning them on again posts nothing unasked.
+        const post = review ? (file.post ?? []) : (file.post ?? []).filter((each) => each !== repo);
         yield* write({ ...file, repos: review ? [...others, repo].toSorted() : others, since: review ? { ...since, [repo]: file.repos.includes(repo) && was !== undefined ? was : now } : since, post });
       }),
     );

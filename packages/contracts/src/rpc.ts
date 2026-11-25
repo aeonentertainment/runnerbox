@@ -342,7 +342,7 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   // Whether a finished review is posted on its pull request, for a repository with reviews on.
   Rpc.make(RPC_METHODS.reviewsSetPost, { payload: { repo: RepoName, post: Schema.Boolean }, success: ReviewsView, error: ReviewFailure }),
   Rpc.make(RPC_METHODS.reviewsSetModel, { payload: { model: Schema.String.check(Schema.isMaxLength(60)) }, success: ReviewsView, error: ReviewFailure }),
-  // A pull request's reviews as the server keeps them. Nothing here is posted to GitHub.
+  // A pull request's reviews as the server keeps them, each saying whether it was posted on the pull request.
   Rpc.make(RPC_METHODS.reviewsRead, { payload: { repo: RepoName, number: PullNumber }, success: PullReviews, error: ReviewFailure }),
   // Starts a review of the pull request's newest commit and returns at once; the review fills in as it runs.
   Rpc.make(RPC_METHODS.reviewsStart, { payload: { repo: RepoName, number: PullNumber }, success: Review, error: ReviewFailure }),

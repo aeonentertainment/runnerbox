@@ -54,7 +54,7 @@ export const ReviewToolkit = Toolkit.make(
   }).annotateMerge(READ_ONLY),
   Tool.make("submit_review", {
     ...shared,
-    description: "Hands in the review. Call it once, when you have finished reading. It is kept for the owner and posted nowhere.",
+    description: "Hands in the review. Call it once, when you have finished reading. It is kept for the owner. You can't post anything yourself.",
     parameters: SubmittedReview,
     success: Schema.Struct({ kept: Schema.Boolean }),
   }).annotateMerge(Context.make(Tool.Readonly, false).pipe(Context.add(Tool.Destructive, false))),
