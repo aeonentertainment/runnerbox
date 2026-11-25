@@ -29,7 +29,7 @@ export function RunPage() {
   // A specific finding from the readings is the Why, with its own advice, in place of the verdict's.
   const finding = resources.data?.sentence?.advice ? { why: resources.data.sentence.text, action: resources.data.sentence.advice } : null;
   const bar = (
-    <PageBar title={run ? `${jobName(run)} #${run.runId}` : "Run"} trail={["All runs"]}>
+    <PageBar title={run ? `${jobName(run)} #${run.runId}` : "Run"} trail={["Runs"]}>
       <RangeMenu />
     </PageBar>
   );
@@ -41,7 +41,7 @@ export function RunPage() {
           <Empty>
             <EmptyHeader>
               <EmptyTitle>This run isn't in the time range</EmptyTitle>
-              <EmptyDescription>Pick a longer range, or open it from All runs.</EmptyDescription>
+              <EmptyDescription>Pick a longer range, or open it from Runs.</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : null}

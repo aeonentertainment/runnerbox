@@ -1,5 +1,5 @@
 import { isInboxItemHidden } from "@runnerbox/contracts";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Gauge, GitPullRequest, Inbox, LayoutDashboard, ListTree, Server, Settings } from "lucide-react";
 import type * as React from "react";
 import { useRange } from "../hooks/useRange.ts";
@@ -14,9 +14,15 @@ import { cn } from "../lib/utils.ts";
 import { EnvironmentMenu } from "./EnvironmentMenu.tsx";
 import { railFade } from "./railFade.ts";
 import { SidebarUpdateSlot } from "./SidebarUpdateSlot.tsx";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./ui/sidebar.tsx";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./ui/sidebar.tsx";
+import { Toggle, ToggleGroup } from "./ui/toggle-group.tsx";
 
 const keep = (previous: RootSearch) => previous;
+
+// The app is two products in one window. The open page says which one is showing.
+type Product = "ci" | "review";
+const productOf = (path: string): Product => (path === "/pulls" || path.startsWith("/pulls/") ? "review" : "ci");
+const PRODUCT_HOME = { ci: "/", review: "/pulls" } as const;
 
 type Page = { readonly to: "/" | "/inbox" | "/runs" | "/pulls" | "/speed" | "/runners" | "/settings"; readonly label: string; readonly icon: React.ComponentType; readonly count?: string | null; readonly alert?: boolean };
 
@@ -38,6 +44,28 @@ function PageRow({ page, path }: { page: Page; path: string }) {
   );
 }
 
+// T3 Code's segmented control, switching the sidebar between the two products' pages. It goes with
+// the labels when the sidebar narrows to its rail, where every page's icon shows instead.
+function ProductSwitch({ product }: { product: Product }) {
+  const navigate = useNavigate();
+  return (
+    <ToggleGroup
+      aria-label="Product"
+      className={cn("w-full group-data-[collapsible=icon]:hidden", railFade)}
+      value={[product]}
+      // Pressing the open product again would clear the group; there's always one showing.
+      onValueChange={([next]) => (next === "ci" || next === "review" ? void navigate({ to: PRODUCT_HOME[next], search: keep }) : undefined)}
+    >
+      <Toggle className="flex-1" value="ci">
+        CI
+      </Toggle>
+      <Toggle className="flex-1" value="review">
+        Code Review
+      </Toggle>
+    </ToggleGroup>
+  );
+}
+
 // The counts cover every connected machine, not only the one picked in the switcher.
 export function AppSidebar() {
   useSidebarShortcut();
@@ -50,30 +78,48 @@ export function AppSidebar() {
   const waiting = needsYouEverywhere(inboxes).filter((item) => !isInboxItemHidden(item)).length;
   const { reviews } = useServerCapabilities();
 
-  const pages: ReadonlyArray<Page> = [
-    { to: "/", label: "Overview", icon: LayoutDashboard },
-    { to: "/inbox", label: "Inbox", icon: Inbox, count: waiting > 0 ? String(waiting) : null, alert: waiting > 0 },
-    { to: "/runners", label: "Runners", icon: Server, count: slots.length > 0 ? `${busy} of ${slots.length} busy` : null },
-    { to: "/runs", label: "All runs", icon: ListTree },
-    // Left out on a server older than reviews, which would have nothing to show.
-    ...(reviews ? [{ to: "/pulls", label: "Pull requests", icon: GitPullRequest } as const] : []),
-    { to: "/speed", label: "Speed and cost", icon: Gauge },
-  ];
+  const product = productOf(path);
+  const pages: Record<Product, ReadonlyArray<Page>> = {
+    ci: [
+      { to: "/", label: "Overview", icon: LayoutDashboard },
+      { to: "/runs", label: "Runs", icon: ListTree },
+      { to: "/speed", label: "Speed and cost", icon: Gauge },
+      { to: "/runners", label: "Runners", icon: Server, count: slots.length > 0 ? `${busy} of ${slots.length} busy` : null },
+    ],
+    review: [{ to: "/pulls", label: "Pull requests", icon: GitPullRequest }],
+  };
 
   return (
     // A raised surface with no border, like Codex's.
     <Sidebar aria-label="Navigation" collapsible="icon" className="group-data-[side=left]:border-r-0">
+      {/* A server older than reviews has one product, so nothing to switch between. */}
+      {reviews ? (
+        <SidebarHeader className="group-data-[collapsible=icon]:hidden">
+          <ProductSwitch product={product} />
+        </SidebarHeader>
+      ) : null}
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu>
-            {pages.map((page) => (
+            {pages[product].map((page) => (
               <PageRow key={page.to} page={page} path={path} />
             ))}
           </SidebarMenu>
         </SidebarGroup>
+        {/* The rail has no switch, so it shows the other product's pages too. */}
+        {reviews ? (
+          <SidebarGroup className="hidden group-data-[collapsible=icon]:block">
+            <SidebarMenu>
+              {pages[product === "ci" ? "review" : "ci"].map((page) => (
+                <PageRow key={page.to} page={page} path={path} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ) : null}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <PageRow page={{ to: "/inbox", label: "Inbox", icon: Inbox, count: waiting > 0 ? String(waiting) : null, alert: waiting > 0 }} path={path} />
           <PageRow page={{ to: "/settings", label: "Settings", icon: Settings }} path={path} />
         </SidebarMenu>
         <SidebarUpdateSlot />

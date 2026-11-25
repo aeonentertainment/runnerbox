@@ -55,7 +55,7 @@ export function SpeedPage() {
   // Carries its repo, so a range change keeps it on screen while the next loads but another repo's
   // jobs never show under this repo's name.
   const trendsQuery = useKept(answerOf(useAtomValue(jobTrendsAtom({ environmentId, repo, days }))));
-  // The same runs atom All runs reads.
+  // The same runs atom Runs reads.
   const runs = useRuns(repo, days);
   const overview = useKept(answerOf(useAtomValue(overviewAtom({ environmentId, days }))));
   const inbox = useInbox();
