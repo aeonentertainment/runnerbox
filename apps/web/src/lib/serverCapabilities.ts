@@ -41,9 +41,11 @@ export type Capabilities = {
   readonly reviewsPush: boolean;
   // `github.subscribe`: the server pushes its GitHub sign-in status when it changes, rather than being asked.
   readonly githubPush: boolean;
+  // `threads.createChat`: a chat on no subject, which opens from any page.
+  readonly chat: boolean;
 };
 
-export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false };
+export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false };
 
 export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilities {
   if (methods === null) return NO_CAPABILITIES;
@@ -70,5 +72,6 @@ export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilit
     moveCiPush: has(RPC_METHODS.moveCiSubscribe),
     reviewsPush: has(RPC_METHODS.reviewsSubscribe),
     githubPush: has(RPC_METHODS.githubSubscribe),
+    chat: has(RPC_METHODS.threadsCreateChat),
   };
 }

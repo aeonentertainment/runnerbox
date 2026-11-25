@@ -96,7 +96,7 @@ export function useThread(subject: ThreadSubject | null, days: number) {
     try {
       let id = threadId;
       if (id === null) {
-        id = (await runtime.run(environmentId, (client) => client["threads.create"]({ subject, days }))).id;
+        id = (await runtime.run(environmentId, (client) => (subject._tag === "general" ? client["threads.createChat"]() : client["threads.create"]({ subject, days })))).id;
         setChosen({ key, id });
         appAtomRegistry.refresh(threadsAtom);
       }

@@ -112,6 +112,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
         "threads.list": ({ subject }) => threads.list(subject),
         "threads.read": ({ id }) => threads.read(id),
         "threads.create": ({ subject, days }) => threads.create(subject, days),
+        "threads.createChat": () => threads.createChat,
         "threads.harnesses": () => threads.harnesses,
         "threads.startTurn": ({ id, text, ...rest }) => threads.startTurn(id, text, turnOptions(rest)),
         "threads.queueTurn": ({ id, text, ...rest }) => threads.queueTurn(id, text, turnOptions(rest)),
