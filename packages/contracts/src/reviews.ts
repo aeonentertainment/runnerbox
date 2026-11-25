@@ -5,8 +5,9 @@ import { RepoName } from "./history.ts";
 // Code review: the open pull requests on the repositories the owner picked, read through the
 // server's sign-in to GitHub (github.ts), on the repositories the App is installed on.
 
-// A repository the App is installed on, and whether the owner turned reviews on for it.
-export const ReviewRepo = Schema.Struct({ repo: RepoName, review: Schema.Boolean });
+// A repository the App is installed on, whether the owner turned reviews on for it, and whether a
+// finished review is posted on its pull request. A server older than posting leaves `post` out.
+export const ReviewRepo = Schema.Struct({ repo: RepoName, review: Schema.Boolean, post: Schema.optionalKey(Schema.Boolean) });
 export type ReviewRepo = typeof ReviewRepo.Type;
 
 export const PullNumber = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100_000_000 }));
@@ -34,7 +35,8 @@ export type ReviewFinding = typeof ReviewFinding.Type;
 export const ReviewState = Schema.Literals(["queued", "running", "done", "failed", "stopped"]);
 export type ReviewState = typeof ReviewState.Type;
 
-// One review of one commit of a pull request. It's kept on the server and posted nowhere.
+// One review of one commit of a pull request. It's kept on the server, and posted on the pull
+// request as one comment when the owner turned that on for the repository.
 export const Review = Schema.Struct({
   id: Schema.String,
   repo: RepoName,
@@ -62,6 +64,10 @@ export const Review = Schema.Struct({
   verdict: Schema.NullOr(Schema.String),
   findings: Schema.Array(ReviewFinding),
   problem: Schema.NullOr(Schema.String),
+  // The comment it was posted as on the pull request, when it was.
+  comment: Schema.optionalKey(Schema.Struct({ id: Schema.Int, url: Schema.String })),
+  // Why it couldn't be posted, when posting is on and GitHub didn't take it.
+  commentProblem: Schema.optionalKey(Schema.String),
 });
 export type Review = typeof Review.Type;
 

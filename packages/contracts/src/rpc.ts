@@ -147,6 +147,7 @@ export const RPC_METHODS = {
   reviewsStatus: "reviews.status",
   reviewsSubscribe: "reviews.subscribe",
   reviewsSetRepo: "reviews.setRepo",
+  reviewsSetPost: "reviews.setPost",
   reviewsSetModel: "reviews.setModel",
   reviewsRead: "reviews.read",
   reviewsStart: "reviews.start",
@@ -338,6 +339,8 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   // saved, or the server reads GitHub.
   Rpc.make(RPC_METHODS.reviewsSubscribe, { success: ReviewsView, error: ReviewFailure, stream: true }),
   Rpc.make(RPC_METHODS.reviewsSetRepo, { payload: { repo: RepoName, review: Schema.Boolean }, success: ReviewsView, error: ReviewFailure }),
+  // Whether a finished review is posted on its pull request, for a repository with reviews on.
+  Rpc.make(RPC_METHODS.reviewsSetPost, { payload: { repo: RepoName, post: Schema.Boolean }, success: ReviewsView, error: ReviewFailure }),
   Rpc.make(RPC_METHODS.reviewsSetModel, { payload: { model: Schema.String.check(Schema.isMaxLength(60)) }, success: ReviewsView, error: ReviewFailure }),
   // A pull request's reviews as the server keeps them. Nothing here is posted to GitHub.
   Rpc.make(RPC_METHODS.reviewsRead, { payload: { repo: RepoName, number: PullNumber }, success: PullReviews, error: ReviewFailure }),
@@ -479,6 +482,8 @@ export const RPC_SCOPES = {
   [RPC_METHODS.reviewsSubscribe]: HISTORY,
   // Which repositories are read manages access.
   [RPC_METHODS.reviewsSetRepo]: ACCESS,
+  // Writing on pull requests under the owner's name: the same bar as turning reviews on.
+  [RPC_METHODS.reviewsSetPost]: ACCESS,
   [RPC_METHODS.reviewsSetModel]: ACCESS,
   [RPC_METHODS.reviewsRead]: HISTORY,
   // A review is an agent turn on the owner's account, so it takes what starting a thread's turn takes.

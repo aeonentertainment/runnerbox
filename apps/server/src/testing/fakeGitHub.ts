@@ -77,6 +77,13 @@ export async function startFakeGitHub(now: number, code?: { readonly baseSha: st
       polls = 0;
       return json({ device_code: "not-a-real-device-code", user_code: "WDJB-MJHT", verification_uri: `${base()}/login/device`, expires_in: 900, interval: 2 });
     }
+    // A review posted on a pull request, or its comment rewritten: taken, and answered as GitHub would.
+    const comment = /^\/repos\/owner\/name\/issues\/(?:(\d+)\/comments|comments\/(\d+))$/.exec(path);
+    if (comment && (request.method === "POST" || request.method === "PATCH")) {
+      request.resume();
+      const id = Number(comment[2] ?? 9000 + Number(comment[1]));
+      return void response.writeHead(comment[2] ? 200 : 201, { "content-type": "application/json" }).end(JSON.stringify({ id, html_url: `https://github.com/owner/name/pull/${comment[1] ?? 41}#issuecomment-${id}` }));
+    }
     if (path === "/fake/commit" && request.method === "POST") {
       committed = !committed;
       replies["/repos/owner/other/contents/.github/workflows/ci.yml"] = workflow(otherCi(committed ? "${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}" : "ubuntu-latest"));

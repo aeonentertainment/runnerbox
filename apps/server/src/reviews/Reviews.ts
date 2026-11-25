@@ -28,7 +28,9 @@ import * as ReviewStore from "./ReviewStore.ts";
 // head commit's checks (PullChecks.ts).
 
 // `since` is when each repository's reviews were turned on, which decides the pull requests reviewed unasked.
-const SettingsFile = Schema.Struct({ v: Schema.Literal(1), repos: Schema.Array(Schema.String), model: Schema.optionalKey(Schema.String), since: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)) });
+// `post` is the repositories whose reviews are posted on their pull requests. A file from before
+// posting has none, so a repository already on posts nothing until its owner says so.
+const SettingsFile = Schema.Struct({ v: Schema.Literal(1), repos: Schema.Array(Schema.String), model: Schema.optionalKey(Schema.String), since: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)), post: Schema.optionalKey(Schema.Array(Schema.String)) });
 type SettingsFile = typeof SettingsFile.Type;
 const decodeFile = Schema.decodeUnknownEffect(Schema.fromJsonString(SettingsFile));
 const NONE: SettingsFile = { v: 1, repos: [] };
@@ -49,9 +51,11 @@ export class Reviews extends Context.Service<
     // `may` is what the asking session may do, which every view says back.
     readonly status: (may: May) => Effect.Effect<ReviewsView, ReviewError>;
     readonly setRepo: (repo: string, review: boolean, may: May) => Effect.Effect<ReviewsView, ReviewError>;
+    // Whether a repository's finished reviews are posted on their pull requests. Only one with reviews on can be.
+    readonly setPost: (repo: string, post: boolean, may: May) => Effect.Effect<ReviewsView, ReviewError>;
     readonly setModel: (model: string, may: May) => Effect.Effect<ReviewsView, ReviewError>;
-    // What a review starts from: the repositories with reviews on, and the model.
-    readonly settings: Effect.Effect<{ readonly repos: ReadonlyArray<string>; readonly model: string }, ReviewError>;
+    // What a review starts from: the repositories with reviews on, the ones that post, and the model.
+    readonly settings: Effect.Effect<{ readonly repos: ReadonlyArray<string>; readonly post: ReadonlyArray<string>; readonly model: string }, ReviewError>;
     // The open pull requests on the repositories with reviews on, asked of GitHub now, and when each
     // repository was turned on. Empty when the server isn't signed in. For the pass that reviews unasked.
     readonly open: Effect.Effect<{ readonly pulls: ReadonlyArray<ListedPull>; readonly since: Readonly<Record<string, string>> }, ReviewError>;
@@ -91,7 +95,9 @@ const make = Effect.gen(function* () {
 
   // A model the file names that reviews no longer offer reads as the default.
   const modelOf = (file: SettingsFile) => (file.model !== undefined && offersReviewModel(file.model) ? file.model : DEFAULT_REVIEW_MODEL);
-  const settings = read.pipe(Effect.map((file) => ({ repos: file.repos, model: modelOf(file) })));
+  // A repository posts only while its reviews are on.
+  const postOf = (file: SettingsFile) => (file.post ?? []).filter((repo) => file.repos.includes(repo));
+  const settings = read.pipe(Effect.map((file) => ({ repos: file.repos, post: postOf(file), model: modelOf(file) })));
 
   const summary = (review: Review): ReviewSummary => ({
     id: review.id,
@@ -140,11 +146,12 @@ const make = Effect.gen(function* () {
     const shared = { canConfigure: may.configure, canReview: may.review, model: modelOf(file), models: REVIEW_MODELS };
     if (reached === null) return { app: null, repos: [], pulls: [], problem: null, checkedAt: null, ...shared };
     const on = new Set(file.repos);
+    const posts = new Set(postOf(file));
     const { pulls, problem, at } = yield* look(reached.repos.filter((repo) => on.has(repo)), reached.token);
     const checksOf = yield* checks.of(pulls, reached.token, at);
     return {
       app: reached.app,
-      repos: reached.repos.map((repo) => ({ repo, review: on.has(repo) })),
+      repos: reached.repos.map((repo) => ({ repo, review: on.has(repo), post: posts.has(repo) })),
       // Each pull request's review is read now, so a running review shows as it changes between looks at GitHub.
       pulls: yield* Effect.forEach(pulls, (listed) => withReview(listed).pipe(Effect.map((pull) => ({ ...pull, checks: checksOf(pull) })))),
       problem: reached.problem ?? problem,
@@ -166,7 +173,24 @@ const make = Effect.gen(function* () {
         // Turning it on again starts the clock again; a repository already on keeps its own.
         const { [repo]: was, ...since } = file.since ?? {};
         const now = new Date(yield* Clock.currentTimeMillis).toISOString();
-        yield* write({ ...file, repos: review ? [...others, repo].toSorted() : others, since: review ? { ...since, [repo]: file.repos.includes(repo) && was !== undefined ? was : now } : since });
+        // A repository turned on from here posts its reviews, as a reviewer that's switched on is expected to.
+        // One already on keeps what it had, and one turned off posts nothing.
+        const posting = (file.post ?? []).filter((each) => each !== repo);
+        const post = review ? (file.repos.includes(repo) ? (file.post ?? []) : [...posting, repo].toSorted()) : posting;
+        yield* write({ ...file, repos: review ? [...others, repo].toSorted() : others, since: review ? { ...since, [repo]: file.repos.includes(repo) && was !== undefined ? was : now } : since, post });
+      }),
+    );
+    yield* bump;
+    return yield* status(may);
+  });
+
+  const setPost = Effect.fn("Reviews.setPost")(function* (repo: string, post: boolean, may: May) {
+    yield* lock.withPermits(1)(
+      Effect.gen(function* () {
+        const file = yield* read;
+        if (post && !file.repos.includes(repo)) return yield* new ReviewError({ reason: "reviews_off" });
+        const others = (file.post ?? []).filter((each) => each !== repo);
+        yield* write({ ...file, post: post ? [...others, repo].toSorted() : others });
       }),
     );
     yield* bump;
@@ -213,7 +237,7 @@ const make = Effect.gen(function* () {
     return new Map(listedOn.filter(([, heads]) => heads.length < PULLS_PER_REPO));
   });
 
-  return Reviews.of({ status, setRepo, setModel, settings, open, heads, changed: SubscriptionRef.changes(changed) });
+  return Reviews.of({ status, setRepo, setPost, setModel, settings, open, heads, changed: SubscriptionRef.changes(changed) });
 });
 
 export const layer = Layer.effect(Reviews, make);

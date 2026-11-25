@@ -150,6 +150,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
         "moveCi.subscribe": () => moveCi.changes(mayMove),
         "moveCi.setRunner": ({ repo, variable, label }) => moveCi.setRunner(repo, variable, label, mayMove),
         "reviews.setRepo": ({ repo, review }) => reviews.setRepo(repo, review, mayReview),
+        "reviews.setPost": ({ repo, post }) => reviews.setPost(repo, post, mayReview),
         "reviews.setModel": ({ model }) => reviews.setModel(model, mayReview),
         "reviews.read": ({ repo, number }) => reviewRuns.read(repo, number, mayReview.review),
         "reviews.start": ({ repo, number }) => reviewRuns.start(repo, number),

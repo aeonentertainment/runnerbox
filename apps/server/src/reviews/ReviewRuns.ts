@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
@@ -25,14 +26,17 @@ import { type FileLines, fetchCommits, type GitResult, type Listed, listPaths, t
 import { pullDiff } from "./pullDiff.ts";
 import { type PullToReview, pullToReview } from "./pullRequests.ts";
 import { reviewableDiff } from "./reviewableDiff.ts";
+import { reviewComment } from "./reviewComment.ts";
 import { REVIEW_SYSTEM_PROMPT, reviewPrompt } from "./reviewPrompt.ts";
 import * as Reviews from "./Reviews.ts";
 import * as ReviewStore from "./ReviewStore.ts";
 
 // Runs a review: fetches the pull request's head commit into a bare repository on this machine,
 // gives a Claude turn the diff and tools that read that commit, and keeps what it hands in. The
-// agent gets no checkout, no shell and none of runnerbox's other tools, and nothing is posted to
-// GitHub. One review runs at a time; the rest wait their turn.
+// agent gets no checkout, no shell and none of runnerbox's other tools. A finished review is posted
+// on the pull request as one comment, under the owner's sign-in, on a repository the owner turned
+// that on for; the agent never writes to GitHub itself. One review runs at a time; the rest wait
+// their turn.
 
 const GITHUB_GIT = "https://github.com";
 // More than this is too much to review well in one pass, and the review says so instead. Lockfiles
@@ -108,6 +112,24 @@ const make = Effect.gen(function* () {
 
   const gitFailure = <A>(result: GitResult<A>): Effect.Effect<A, ReviewFailed> => (result.ok ? Effect.succeed(result.value) : Effect.fail(new ReviewFailed({ why: result.why })));
 
+  const decodeComment = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.Int, html_url: Schema.String }));
+  const COULD_NOT_POST = "GitHub didn't take the comment. The review is here, and the next one tries again.";
+
+  // Leaves the finished review on its pull request as one comment: the comment the pull request's
+  // last posted review left is rewritten, so a pull request holds one, and a new one is made when
+  // there's none or it was deleted. A review that can't be posted is still done, and says why.
+  const post = Effect.fn("ReviewRuns.post")(function* (run: Run, token: string) {
+    const { repo, number } = run.review;
+    if (!(yield* reviews.settings).post.includes(repo)) return;
+    const body = { body: reviewComment(run.review) };
+    const earlier = (yield* store.list(repo, number)).find((each) => each.id !== run.review.id && each.comment !== undefined)?.comment;
+    const rewritten = earlier === undefined ? null : yield* Effect.promise(() => githubRequest(config.apiBase, "PATCH", `repos/${repo}/issues/comments/${earlier.id}`, token, body));
+    // Only a comment that's gone is replaced: any other refusal is told, not answered with a second comment.
+    const reply = rewritten === null || (rewritten.kind === "refused" && rewritten.status === 404) ? yield* Effect.promise(() => githubRequest(config.apiBase, "POST", `repos/${repo}/issues/${number}/comments`, token, body)) : rewritten;
+    const posted = reply.kind === "ok" ? decodeComment(reply.body) : Option.none();
+    yield* keep(run, Option.isSome(posted) ? { comment: { id: posted.value.id, url: posted.value.html_url } } : { commentProblem: COULD_NOT_POST });
+  });
+
   // The lines a finding points at, as the owner will see them. A path or range the agent got wrong leaves it without.
   const excerpt = (reading: Reading, finding: SubmittedReview["findings"][number]) => {
     const [from, to] = finding.startLine <= finding.endLine ? [finding.startLine, finding.endLine] : [finding.endLine, finding.startLine];
@@ -165,6 +187,8 @@ const make = Effect.gen(function* () {
       if (submitted === null) return yield* Exit.isFailure(turn) ? Effect.failCause(turn.cause) : new ReviewFailed({ why: "The reviewer ended without handing in a review." });
       const findings = yield* Effect.forEach(submitted.findings, (finding) => excerpt(reading, finding));
       yield* keep(run, { state: "done", finishedAt: yield* nowIso, costUsd, filesRead: reading.opened.size, score: submitted.score, impact: submitted.impact, reach: submitted.reach, verdict: submitted.verdict, findings });
+      // After the review is kept as done, so a comment that can't be posted doesn't cost the review.
+      yield* post(run, token).pipe(Effect.catch(() => keep(run, { commentProblem: COULD_NOT_POST }).pipe(Effect.ignore)));
     }).pipe(Effect.scoped, Effect.timeoutOrElse({ duration: REVIEW_LIMIT, orElse: () => Effect.fail(new ReviewFailed({ why: "The review took longer than 20 minutes and was stopped." })) }));
 
   // However the work ended, the review says so. A stop by the server leaves it to read as cut short.

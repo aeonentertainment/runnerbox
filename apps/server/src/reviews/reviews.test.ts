@@ -56,7 +56,7 @@ test("a signed-in server lists the repositories the App is installed on, and rea
     const listed = await session(ALL_SCOPES, (client) => client["reviews.status"]());
     assert.ok(Exit.isSuccess(listed));
     assert.deepEqual(listed.value.app, { slug: "example-app", name: "Example App" });
-    assert.deepEqual(listed.value.repos, [{ repo: "owner/name", review: false }, { repo: "owner/other", review: false }]);
+    assert.deepEqual(listed.value.repos, [{ repo: "owner/name", review: false, post: false }, { repo: "owner/other", review: false, post: false }]);
     // Nothing is read from a repository until the owner turns it on.
     assert.deepEqual(listed.value.pulls, []);
     assert.ok(!JSON.stringify(listed.value).includes(USER_TOKEN));

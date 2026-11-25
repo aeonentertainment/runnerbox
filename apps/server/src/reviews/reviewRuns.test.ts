@@ -22,6 +22,7 @@ import { autoBudget, type ListedPull, MAX_AUTO_PER_DAY, wantsReview } from "./au
 import { fetchCommits, listPaths, readLines, searchLines } from "./gitObjects.ts";
 import { pullsOf } from "./pullRequests.ts";
 import { reviewableDiff } from "./reviewableDiff.ts";
+import { reviewComment } from "./reviewComment.ts";
 import { reviewPrompt } from "./reviewPrompt.ts";
 
 const TIMING = { pollMs: 50, slowMs: 300, maxBackoffMs: 400, idleMs: 200, checkMs: 20 };
@@ -30,12 +31,26 @@ const TIMING = { pollMs: 50, slowMs: 300, maxBackoffMs: 400, idleMs: 200, checkM
 // fixture's branch. `script` changes the pull request between requests: its head commit, when it
 // was opened, and whether it's a draft. It answers only the signed-in user's token.
 async function fakeGitHub(code: ReturnType<typeof makeReviewFixture>) {
-  const script = { head: code.headSha, openedAt: "2020-01-01T10:00:00Z", draft: false };
+  const script = { head: code.headSha, openedAt: "2020-01-01T10:00:00Z", draft: false, commentGone: false };
+  // Every comment written to pull request 7, as GitHub would see them: made, or rewritten by its ID.
+  const comments: Array<{ readonly wrote: string; readonly body: string }> = [];
   const server = createServer((request, response) => {
     const path = request.url ?? "";
     const pull = { number: 7, title: "A job whose runner is gone waits again", state: "open", body: "It stayed assigned.", draft: script.draft, user: { login: "someone" }, head: { ref: "fix/queue-gone-runner", sha: script.head, repo: { full_name: "owner/name" } }, base: { ref: "main", sha: code.baseSha }, additions: 7, deletions: 3, changed_files: 1, created_at: script.openedAt, updated_at: "2020-01-02T10:00:00Z" };
     const json = (status: number, body: unknown) => void response.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
     if (request.headers.authorization !== `Bearer ${USER_TOKEN}`) return json(401, {});
+    const rewrites = /^\/repos\/owner\/name\/issues\/comments\/(\d+)$/.exec(path);
+    if ((request.method === "POST" && path === "/repos/owner/name/issues/7/comments") || (request.method === "PATCH" && rewrites)) {
+      let text = "";
+      request.on("data", (chunk) => (text += chunk));
+      request.on("end", () => {
+        if (rewrites && script.commentGone) return json(404, {});
+        const id = rewrites ? Number(rewrites[1]) : 900 + comments.length;
+        comments.push({ wrote: rewrites ? `rewrote ${id}` : `made ${id}`, body: (JSON.parse(text) as { body: string }).body });
+        json(rewrites ? 200 : 201, { id, html_url: `https://github.com/owner/name/pull/7#issuecomment-${id}` });
+      });
+      return;
+    }
     if (path.startsWith("/user/installations?")) return json(200, { installations: [{ id: 11, repository_selection: "selected", account: { login: "owner" } }] });
     if (path.startsWith("/user/installations/11/repositories?")) return json(200, { total_count: 1, repositories: [{ full_name: "owner/name" }] });
     if (path.startsWith("/repos/owner/name/pulls?")) return json(200, [pull]);
@@ -45,7 +60,7 @@ async function fakeGitHub(code: ReturnType<typeof makeReviewFixture>) {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
-  return { apiBase: `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`, script, close: () => new Promise((resolve) => server.close(resolve)) };
+  return { apiBase: `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`, script, comments, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
 async function start(steps: ReadonlyArray<FakeStep>) {
@@ -114,6 +129,73 @@ test("a review reads the pull request's commit through its own tools, and what i
   } finally {
     await close();
   }
+});
+
+test("a finished review is posted on the pull request as one comment, which the next review rewrites, and only where posting is on", async () => {
+  const { github, session, ended, close } = await start(REVIEW_SCRIPT);
+  const review = () => session(ALL_SCOPES, (client) => client["reviews.start"]({ repo: "owner/name", number: 7 })).then(ended);
+  try {
+    // Turning reviews on turned posting on with it.
+    const status = await session(["history:read"], (client) => client["reviews.status"]());
+    assert.ok(Exit.isSuccess(status));
+    assert.deepEqual(status.value.repos, [{ repo: "owner/name", review: true, post: true }]);
+
+    const first = await review();
+    assert.deepEqual(first.comment, { id: 900, url: "https://github.com/owner/name/pull/7#issuecomment-900" });
+    assert.deepEqual(github.comments.map((comment) => comment.wrote), ["made 900"]);
+    assert.match(github.comments[0]?.body ?? "", /^### Fix 1 before merging\n/);
+    assert.match(github.comments[0]?.body ?? "", /Posted by RunnerBox\.<\/sub>$/);
+
+    // The next review rewrites that comment, so the pull request holds one.
+    const second = await review();
+    assert.equal(second.comment?.id, 900);
+    assert.deepEqual(github.comments.map((comment) => comment.wrote), ["made 900", "rewrote 900"]);
+
+    // A comment someone deleted is made again, not counted as a failure.
+    github.script.commentGone = true;
+    const third = await review();
+    assert.deepEqual([third.comment?.id, third.commentProblem], [902, undefined]);
+
+    // With posting off the review is still done, and nothing is written.
+    const off = await session(ALL_SCOPES, (client) => client["reviews.setPost"]({ repo: "owner/name", post: false }));
+    assert.ok(Exit.isSuccess(off) && off.value.repos[0]?.post === false);
+    const written = github.comments.length;
+    const quiet = await review();
+    assert.deepEqual([quiet.state, quiet.comment, github.comments.length], ["done", undefined, written]);
+
+    // A session that may not turn reviews on may not turn posting on either.
+    const reader = await session(["history:read", "runners:read", "threads:operate"], (client) => client["reviews.setPost"]({ repo: "owner/name", post: true }));
+    assert.ok(Exit.isFailure(reader));
+  } finally {
+    await close();
+  }
+});
+
+test("what the reviewer wrote can't mention anyone, link anywhere or mark anything up in the comment posted under the owner's name", () => {
+  const finding = {
+    priority: "P1" as const,
+    title: "Ping @octocat and [click](https://example.com) <img src=x>",
+    path: "src/a b.ts",
+    startLine: 3,
+    endLine: 3,
+    body: "See https://example.com/x and www.example.com.\n\n# Not a heading\n**not bold** `not code`",
+    rule: "@everyone must review",
+    code: [{ line: 3, text: "const fence = \"```\";" }],
+  };
+  const review: Review = { id: "r1", repo: "owner/name", number: 7, title: "t", author: "someone", branch: "b", base: "main", headSha: "a".repeat(40), additions: 1, deletions: 0, changedFiles: 1, state: "done", startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:01:00Z", model: "opus", costUsd: null, filesRead: 0, score: 2, impact: "high", reach: "Touches @team/core.", verdict: "Hold it. <!-- hidden -->", findings: [finding], problem: null };
+  const body = reviewComment(review);
+  // No "@" is followed by a name, and no address or "www." is left whole, so GitHub links neither.
+  assert.doesNotMatch(body, /@[A-Za-z]/);
+  assert.doesNotMatch(body.replace(`https://github.com/owner/name/blob/${"a".repeat(40)}/src/a%20b.ts#L3`, ""), /https?:\/\/|www\./);
+  // Their markup is escaped: no link, image, heading, bold, code span or comment of theirs survives.
+  assert.ok(body.includes("\\[click\\]\\(") && body.includes("\\<img src=x\\>") && body.includes("\\# Not a heading") && body.includes("\\*\\*not bold\\*\\*") && body.includes("\\`not code\\`") && body.includes("\\<\\!\\-\\- hidden"));
+  // The excerpt's own backticks can't close its fence.
+  assert.ok(body.includes("````\nconst fence = \"```\";\n````"));
+  // The one link is ours, to the reviewed lines at the reviewed commit.
+  assert.ok(body.includes(`(https://github.com/owner/name/blob/${"a".repeat(40)}/src/a%20b.ts#L3)`));
+  // A review too long for GitHub says how many findings it left out.
+  const long = reviewComment({ ...review, findings: Array.from({ length: 40 }, () => ({ ...finding, body: "x ".repeat(2000) })) });
+  assert.ok(long.length < 65_536 && /\d+ more findings are in RunnerBox/.test(long));
 });
 
 test("a pull request open before reviews were turned on is left alone until it's reviewed once, and then every push is", async () => {
