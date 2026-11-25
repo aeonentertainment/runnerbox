@@ -1,14 +1,11 @@
 import type { DayTotals } from "@runnerbox/contracts";
 import { addTotals } from "../../lib/addTotals.ts";
 import { ChartLegend } from "./ChartLegend.tsx";
-import { DayBars } from "./DayBars.tsx";
+import { DayAreas } from "./DayAreas.tsx";
 import type { MachineDays } from "./machineDays.ts";
 import { percentText } from "./durationWords.ts";
 import { OverviewSection } from "./OverviewSection.tsx";
 import { RankedList } from "./RankedList.tsx";
-
-const PASSED = "fill-foreground/90";
-const FAILED = "fill-destructive";
 
 // Jobs that passed and failed each day, and each machine's share of them.
 export function JobsEachDay({ days, byMachine, range }: { days: ReadonlyArray<DayTotals>; byMachine: ReadonlyArray<MachineDays>; range: string }) {
@@ -20,12 +17,12 @@ export function JobsEachDay({ days, byMachine, range }: { days: ReadonlyArray<Da
         <p className="text-muted-foreground">No jobs ran {range.toLowerCase()}.</p>
       ) : (
         <>
-          <ChartLegend keys={[{ label: "Passed", mark: "box", className: "bg-foreground/90" }, { label: "Failed", mark: "box", className: "bg-destructive" }]} />
-          <DayBars
+          <ChartLegend keys={[{ label: "Passed", mark: "line", className: "bg-foreground" }, { label: "Failed", mark: "line", className: "bg-destructive" }]} />
+          <DayAreas
             days={days.map((day) => day.day)}
             series={[
-              { label: "Passed", fill: PASSED, values: days.map((day) => day.passed) },
-              { label: "Failed", fill: FAILED, values: days.map((day) => day.failed) },
+              { label: "Passed", color: "var(--foreground)", values: days.map((day) => day.passed) },
+              { label: "Failed", color: "var(--destructive)", values: days.map((day) => day.failed) },
             ]}
             label="Jobs each day, passed and failed"
           />

@@ -2,7 +2,7 @@ import type { DayTotals, PullRequest } from "@runnerbox/contracts";
 import { addTotals } from "../../lib/addTotals.ts";
 import { hasFindings } from "../../lib/pullStanding.ts";
 import { ChartLegend } from "./ChartLegend.tsx";
-import { DayBars } from "./DayBars.tsx";
+import { DayAreas } from "./DayAreas.tsx";
 import { OverviewSection } from "./OverviewSection.tsx";
 import { RankedList } from "./RankedList.tsx";
 
@@ -24,12 +24,12 @@ export function ReviewsEachDay({ days, pulls, range }: { days: ReadonlyArray<Day
         <p className="text-muted-foreground">No reviews finished {range.toLowerCase()}.</p>
       ) : (
         <>
-          <ChartLegend keys={[{ label: "Found something to fix", mark: "box", className: "bg-foreground/90" }, { label: "Found nothing", mark: "box", className: "bg-foreground/30" }]} />
-          <DayBars
+          <ChartLegend keys={[{ label: "Found something to fix", mark: "line", className: "bg-foreground" }, { label: "Found nothing", mark: "line", className: "bg-muted-foreground" }]} />
+          <DayAreas
             days={days.map((day) => day.day)}
             series={[
-              { label: "Found something to fix", fill: "fill-foreground/90", values: days.map((day) => day.reviewsWithFindings) },
-              { label: "Found nothing", fill: "fill-foreground/30", values: days.map((day) => day.reviews - day.reviewsWithFindings) },
+              { label: "Found something to fix", color: "var(--foreground)", values: days.map((day) => day.reviewsWithFindings) },
+              { label: "Found nothing", color: "var(--muted-foreground)", values: days.map((day) => day.reviews - day.reviewsWithFindings) },
             ]}
             label="Reviews each day, found something to fix and found nothing"
           />
