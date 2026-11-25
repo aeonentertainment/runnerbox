@@ -11,7 +11,8 @@ import { openSession, type RunnerboxClient } from "./session.ts";
 
 export type ConnectionState =
   | { readonly status: "connecting"; readonly attempt: number }
-  | { readonly status: "connected"; readonly client: RunnerboxClient; readonly since: number; readonly route: Route }
+  // `baseUrl` is the address the server answers HTTP at from this machine.
+  | { readonly status: "connected"; readonly client: RunnerboxClient; readonly since: number; readonly route: Route; readonly baseUrl: string }
   | { readonly status: "disconnected"; readonly reason: ConnectionError["reason"]; readonly message: string; readonly retryAt: number | null };
 
 export type ClientState = {
@@ -94,7 +95,7 @@ export function createClientRuntime(platform: ClientPlatform) {
               const { publicKey } = yield* fetchProvenDescriptor(baseUrl, environment);
               const { token, prove } = yield* authenticate;
               const { client, closed } = yield* openSession(baseUrl, token, prove);
-              setConnection(environment.environmentId, { status: "connected", client, since: Date.now(), route });
+              setConnection(environment.environmentId, { status: "connected", client, since: Date.now(), route, baseUrl });
               // The server accepted the session, so the key it proved is this environment's.
               if (environment.serverPublicKey === undefined) yield* pin(environment, publicKey);
               yield* closed;

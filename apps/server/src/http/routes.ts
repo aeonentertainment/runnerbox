@@ -72,8 +72,31 @@ const wsTicket = (entry: AuthStore.Entry) => HttpRouter.add(
   }),
 );
 
-const page = (status: number, title: string, line: string) =>
-  HttpServerResponse.text(`<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:16px system-ui;background:#141414;color:#f5f5f5;padding:48px"><h1 style="font-size:20px">${title}</h1><p>${line}</p>`, { status, contentType: "text/html; charset=utf-8", headers: noStore });
+// A plain page for the owner's browser. `after` is markup the caller built and escaped itself.
+const page = (status: number, title: string, line: string, after = "") =>
+  HttpServerResponse.text(`<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:16px system-ui;background:#141414;color:#f5f5f5;padding:48px"><h1 style="font-size:20px">${title}</h1><p>${line}</p>${after}`, { status, contentType: "text/html; charset=utf-8", headers: noStore });
+
+const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
+
+// Where the owner's browser starts creating the review bot: GitHub takes an App's manifest only as
+// a posted form, so this page holds it, with one button that sends it to GitHub. It's shown only to
+// whoever has the setup's state, which the session that started the setup was given.
+const botSetup = HttpRouter.add(
+  "GET",
+  ReviewBot.SETUP_PATH,
+  Effect.gen(function* () {
+    const bot = yield* ReviewBot.ReviewBot;
+    const state = Option.getOrUndefined(HttpServerRequest.toURL(yield* HttpServerRequest.HttpServerRequest))?.searchParams.get("state") ?? "";
+    const form = yield* bot.setupForm(state);
+    if (form === null) return page(400, "That link doesn't start a review bot", "It was already used or it ran out. Start again from Settings.");
+    return page(
+      200,
+      "Create the review bot on GitHub",
+      "GitHub will show the bot's name and what it may do before anything is created. It asks to write to pull requests and nothing else.",
+      `<form method="post" action="${escapeHtml(form.action)}"><input type="hidden" name="manifest" value="${escapeHtml(form.manifest)}"><button style="font:inherit;padding:8px 14px;border-radius:8px;border:0;background:#346bf1;color:#fff;cursor:pointer">Continue to GitHub</button></form>`,
+    );
+  }),
+);
 
 // Where GitHub sends the owner's browser once the review bot's App exists, with a one-time code.
 // No session comes with a redirect, so the setup's own state is what's checked: only the setup an
@@ -96,5 +119,5 @@ const botCreated = HttpRouter.add(
 // user's browser has nothing it could ride on.
 const cors = HttpRouter.cors({ allowedHeaders: ["authorization", "content-type", "dpop"], maxAge: 600 });
 
-// The bot's redirect is answered only on the listener apps use, never the tunnel's.
-export const layer = (entry: AuthStore.Entry) => Layer.mergeAll(descriptor, pair(entry), wsTicket(entry), cors, ...(entry === "local" ? [botCreated] : []));
+// The bot's setup page and redirect are answered only on the listener apps use, never the tunnel's.
+export const layer = (entry: AuthStore.Entry) => Layer.mergeAll(descriptor, pair(entry), wsTicket(entry), cors, ...(entry === "local" ? [botSetup, botCreated] : []));

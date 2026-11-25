@@ -1,6 +1,7 @@
 import type { GitHubSignInPrompt, GitHubStatus } from "@runnerbox/contracts";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { ReviewBotSection } from "../../components/settings/ReviewBotSection.tsx";
 import { SettingsIntro } from "../../components/settings/SettingsIntro.tsx";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "../../components/settings/settingsLayout.tsx";
 import { StatusDot } from "../../components/settings/StatusDot.tsx";
@@ -114,6 +115,7 @@ export function GitHubSettings() {
         )}
         {error ? <p className="px-3 py-3 text-destructive text-xs sm:px-4">{error}</p> : null}
       </SettingsSection>
+      <ReviewBotSection canConfigure={canConfigure} />
       {account !== null ? (
         <>
           <SettingsSection title="Installed on">

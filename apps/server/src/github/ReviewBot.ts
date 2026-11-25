@@ -36,6 +36,7 @@ const LOOPBACK = /^http:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d{1,5}$/;
 const ORGANIZATION = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 const CODE = /^[A-Za-z0-9_-]{1,200}$/;
 export const CREATED_PATH = "/api/github/bot-created";
+export const SETUP_PATH = "/api/github/bot-setup";
 
 const Stored = Schema.Struct({
   v: Schema.Literal(1),
@@ -52,14 +53,18 @@ const decodeFile = Schema.decodeUnknownEffect(Schema.fromJsonString(Stored));
 // aren't read: nothing here uses them, so they're never held.
 const decodeConversion = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.Int, client_id: Schema.String, slug: Schema.String, name: Schema.String, pem: Schema.String }));
 
-type Pending = { readonly state: string; readonly expiresAt: number };
+// The form the setup's page posts to GitHub: `manifest` as its one field, to `action`.
+export type SetupForm = { readonly action: string; readonly manifest: string };
+type Pending = { readonly state: string; readonly expiresAt: number; readonly form: SetupForm };
 
 export class ReviewBot extends Context.Service<
   ReviewBot,
   {
     readonly status: Effect.Effect<ReviewBotStatus, ReviewBotError>;
-    // Starts a setup and says what the browser posts to GitHub. A setup already waiting is dropped.
+    // Starts a setup and says where the owner's browser begins it. A setup already waiting is dropped.
     readonly startSetup: (redirectBase: string, organization: string | undefined) => Effect.Effect<ReviewBotSetup, ReviewBotError>;
+    // The form for the setup `state` names, while it waits. Asking doesn't spend it.
+    readonly setupForm: (state: string) => Effect.Effect<SetupForm | null>;
     // GitHub sent the browser back with `code`. Only the setup that was started, named by `state`,
     // is finished, and only once. `unreachable` is GitHub not answering: the setup still waits, so
     // the same redirect can be tried again.
@@ -121,7 +126,6 @@ const make = Effect.gen(function* () {
       Effect.gen(function* () {
         if ((yield* current) !== null) return yield* new ReviewBotError({ reason: "exists" });
         const state = randomBytes(24).toString("base64url");
-        pending = { state, expiresAt: (yield* Clock.currentTimeMillis) + SETUP_MS };
         const manifest = {
           // The owner can change the name on GitHub's page; App names are unique across GitHub.
           name: "runnerbox reviews",
@@ -132,16 +136,22 @@ const make = Effect.gen(function* () {
           default_events: [],
         };
         const owner = organization === undefined ? "" : `/organizations/${organization}`;
-        return { action: `${site}${owner}/settings/apps/new?state=${state}`, manifest: JSON.stringify(manifest) };
+        pending = { state, expiresAt: (yield* Clock.currentTimeMillis) + SETUP_MS, form: { action: `${site}${owner}/settings/apps/new?state=${state}`, manifest: JSON.stringify(manifest) } };
+        return { startUrl: `${redirectBase}${SETUP_PATH}?state=${state}` };
       }),
     );
   });
 
+  const waitingFor = Effect.fn("ReviewBot.waitingFor")(function* (state: string) {
+    const waiting = pending;
+    return waiting !== null && sameText(waiting.state, state) && (yield* Clock.currentTimeMillis) <= waiting.expiresAt ? waiting : null;
+  });
+  const setupForm = (state: string) => Effect.map(waitingFor(state), (waiting) => waiting?.form ?? null);
+
   const finishSetup = Effect.fn("ReviewBot.finishSetup")(function* (code: string, state: string) {
     return yield* lock.withPermits(1)(
       Effect.gen(function* () {
-        const waiting = pending;
-        if (waiting === null || !CODE.test(code) || !sameText(waiting.state, state) || (yield* Clock.currentTimeMillis) > waiting.expiresAt) return "refused" as const;
+        if (!CODE.test(code) || (yield* waitingFor(state)) === null) return "refused" as const;
         const reply = yield* convert(code);
         // The App may already exist on GitHub, and the code is good for the rest of the hour, so the
         // setup is kept for the owner to reload the page.
@@ -168,7 +178,7 @@ const make = Effect.gen(function* () {
   );
 
   // Under the lock too, so a first read can't put back what a remove just dropped.
-  return ReviewBot.of({ status: lock.withPermits(1)(Effect.map(current, view)), startSetup, finishSetup, remove });
+  return ReviewBot.of({ status: lock.withPermits(1)(Effect.map(current, view)), startSetup, setupForm, finishSetup, remove });
 });
 
 export const layer = Layer.effect(ReviewBot, make);

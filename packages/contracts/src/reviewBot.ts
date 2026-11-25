@@ -17,9 +17,10 @@ export type ReviewBot = typeof ReviewBot.Type;
 export const ReviewBotStatus = Schema.Struct({ bot: Schema.NullOr(ReviewBot) });
 export type ReviewBotStatus = typeof ReviewBotStatus.Type;
 
-// What the owner's browser posts to GitHub to create the App: `manifest` as the form's one field,
-// to `action`. GitHub shows the App's name and permissions to confirm before it exists.
-export const ReviewBotSetup = Schema.Struct({ action: Schema.String, manifest: Schema.String });
+// Where the owner's browser starts: a page on this server that sends the App's manifest on to
+// GitHub, which shows its name and permissions to confirm before it exists. GitHub takes the
+// manifest only as a posted form, which a link can't carry, so the page holds the form.
+export const ReviewBotSetup = Schema.Struct({ startUrl: Schema.String });
 export type ReviewBotSetup = typeof ReviewBotSetup.Type;
 
 export const ReviewBotSetupRequest = Schema.Struct({
