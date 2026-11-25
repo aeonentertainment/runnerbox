@@ -22,10 +22,13 @@ const PUNCTUATION = /[!-/:-@[-`{-~]/;
 // GitHub links a commit by seven or more hex digits, so no run is left longer than six.
 const HEX_RUN = 6;
 
+// Letters and symbols that draw nothing, which a long run of would read as a blank line and so
+// as the start of a paragraph the reviewer never had.
+const BLANK = /[\u115f\u1160\u2800\u3164\uffa0]/g;
 // One line, with nothing invisible of the reviewer's own left in it: line breaks and tabs become
 // spaces, and control and formatting characters go, among them the ones that reverse the reading
 // order or hide text, and any gap the reviewer placed to line up with ours.
-const clean = (text: string) => text.replace(/\s+/gu, " ").replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, "").trim();
+const clean = (text: string) => text.replace(/\s+/gu, " ").replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, "").replace(BLANK, "").trim();
 
 // The text with a gap wherever GitHub could otherwise recognise something, each character written
 // by `write`, which escapes it for where the text is going.
@@ -59,7 +62,11 @@ const LONGEST_LINE = 400;
 // A fence longer than any run of backticks in what it holds, so the code can't close it. Each
 // line stays one line, and keeps nothing that reverses or hides text.
 const fenced = (lines: ReadonlyArray<string>) => {
-  const shown = lines.map((line) => line.replace(/[\r\n\u2028\u2029\u0085]/g, " ").replace(/[\p{Cf}\p{Cs}]/gu, "").replace(new RegExp(`\`{${LONGEST_RUN}}(?=\`)`, "g"), (run) => `${run}${GAP}`)).map((line) => (line.length > LONGEST_LINE ? `${line.slice(0, LONGEST_LINE)}…` : line));
+  const shown = lines.map((line) => line.replace(/[\r\n\u2028\u2029\u0085]/g, " ").replace(/[\p{Cf}\p{Cs}]/gu, "").replace(BLANK, "").replace(new RegExp(`\`{${LONGEST_RUN}}(?=\`)`, "g"), (run) => `${run}${GAP}`)).map((line) => {
+    // Cut by character, not by half of one, so the comment stays text GitHub will take.
+    const characters = [...line];
+    return characters.length > LONGEST_LINE ? `${characters.slice(0, LONGEST_LINE).join("")}…` : line;
+  });
   const longest = Math.max(2, ...shown.flatMap((line) => [...line.matchAll(/`+/g)].map((run) => run[0].length)));
   const fence = "`".repeat(longest + 1);
   return [fence, ...shown, fence].join("\n");

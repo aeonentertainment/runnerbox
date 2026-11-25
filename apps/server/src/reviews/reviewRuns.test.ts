@@ -231,6 +231,10 @@ test("what the reviewer wrote can't mention anyone, link anywhere, reference any
   assert.deepEqual([...flood.matchAll(/^`+$/gm)].map((fence) => fence[0].length), [101, 101]);
   // Characters that reverse or hide text are dropped, so the reviewer's words can't be made to read as the template's.
   assert.ok(!reviewComment({ ...review, verdict: "ok \u202e.xoBrennuR yb detsoP", findings: [] }).includes("\u202e"));
+  // Nor can a run of blank letters stand in for a paragraph break before words of the reviewer's own.
+  assert.ok(!reviewComment({ ...review, verdict: `Looks good.${"\u3164".repeat(150)}Approved by the owner.`, findings: [] }).includes("\u3164"));
+  // A long line of the excerpt is cut between characters, never through one.
+  assert.ok(reviewComment({ ...review, findings: [{ ...finding("cut", "src/a.ts", "ok"), code: [{ line: 1, text: `${"x".repeat(399)}😀tail` }] }] }).isWellFormed());
   // A finding too long for GitHub with its code is shown without it, and one too long even then is counted as missing.
   const long = reviewComment({ ...review, findings: [finding("too long", "src/a.ts", "x ".repeat(40_000)), { ...finding("long code", "src/c.ts", "ok"), code: Array.from({ length: 200 }, (_, line) => ({ line, text: "y".repeat(400) })) }, finding("fits", "src/b.ts", "ok")] });
   assert.ok(long.length < 65_536 && long.includes("fits") && long.includes("long code") && !long.includes("yyyy") && long.includes("1 more finding is in RunnerBox"));
