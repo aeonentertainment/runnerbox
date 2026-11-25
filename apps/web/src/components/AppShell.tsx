@@ -9,8 +9,10 @@ import { PanelAnimationSuppressionProvider, usePanelAnimationSettings, usePanelN
 import { appAtomRegistry } from "../rpc/atomRegistry.ts";
 import { runtime } from "../runtime.ts";
 import { AppSidebar } from "./AppSidebar.tsx";
+import { ChatDock } from "./ChatDock.tsx";
 import { CommandPalette } from "./CommandPalette.tsx";
 import { ConnectionNotice } from "./ConnectionNotice.tsx";
+import { chatDockOpenAtom } from "../state/chatDock.ts";
 import { commandPaletteOpenAtom } from "../state/commandPalette.ts";
 import { SidebarInset, SidebarProvider } from "./ui/sidebar.tsx";
 import { ToastProvider } from "./ui/toast.tsx";
@@ -28,13 +30,15 @@ export function AppShell() {
   const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } = usePanelAnimationSettings();
   const panelAnimationsSuppressed = usePanelNavigationSuppression(path);
   useNeedsYouNotifications();
-  // Cmd+K or Ctrl+K opens the palette from anywhere: a key press is outside React.
+  // Cmd+K or Ctrl+K opens the palette from anywhere, and Cmd+J or Ctrl+J the chat: a key press is
+  // outside React.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        appAtomRegistry.update(commandPaletteOpenAtom, (open) => !open);
-      }
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      const toggled = event.key === "k" ? commandPaletteOpenAtom : event.key === "j" ? chatDockOpenAtom : null;
+      if (toggled === null) return;
+      event.preventDefault();
+      appAtomRegistry.update(toggled, (open) => !open);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -56,7 +60,13 @@ export function AppShell() {
             <AppSidebar />
             <SidebarInset>
               <ConnectionNotice />
-              <Outlet />
+              {/* The page keeps its own column, and the chat docks beside it. */}
+              <div className="flex min-h-0 flex-1">
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <Outlet />
+                </div>
+                <ChatDock />
+              </div>
             </SidebarInset>
           </SidebarProvider>
         </PanelAnimationSuppressionProvider>

@@ -62,6 +62,8 @@ export class Threads extends Context.Service<
     readonly list: (subject?: ThreadSubject) => Effect.Effect<ReadonlyArray<ThreadSummary>, ThreadError>;
     readonly read: (id: string) => Effect.Effect<ThreadDetail, ThreadError>;
     readonly create: (subject: ThreadSubject, days: number) => Effect.Effect<ThreadSummary, ThreadError>;
+    // A thread on no subject, which reads no logs to start.
+    readonly createChat: Effect.Effect<ThreadSummary, ThreadError>;
     // Logs the question and starts the turn in the background; it ends on the thread's stream.
     // `scopes` are the asking session's: only one holding `threads:reproduce` gives the turn the
     // reproduce's shell tool, whoever started the reproduce.
@@ -225,6 +227,9 @@ const make = Effect.gen(function* () {
     yield* log.create(header);
     return summary({ header, items: [] });
   });
+
+  // No window to look in: a chat's packet is fixed.
+  const createChat = create({ _tag: "general" }, 1);
 
   // Uninterruptible, so a Stop can't land between logging an item, publishing it and updating
   // the turn: what the user saw stream is either logged here or kept by `endTurn`.
@@ -569,7 +574,7 @@ const make = Effect.gen(function* () {
   const holdForRestart = lock.withPermits(1)(Effect.sync(() => (held = true)).pipe(Effect.andThen(busy)));
   const resume = Effect.sync(() => void (held = false));
 
-  return Threads.of({ busy, holdForRestart, resume, provider, harnesses, list, read, create, startTurn, queueTurn, cancelQueued, remove, interrupt, stopTurn, subscribe, checkReproduce, startReproduce, stopReproduce, reproduceExec, proposeChange });
+  return Threads.of({ busy, holdForRestart, resume, provider, harnesses, list, read, create, createChat, startTurn, queueTurn, cancelQueued, remove, interrupt, stopTurn, subscribe, checkReproduce, startReproduce, stopReproduce, reproduceExec, proposeChange });
 });
 
 export const layer = Layer.effect(Threads, make);

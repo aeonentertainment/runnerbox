@@ -26,6 +26,8 @@ export const subjectPacket = Effect.fn("subjectPacket")(function* (subject: Thre
     const { evidence, id: _id, ...rest } = item;
     return { title: item.title, packet: JSON.stringify({ subject: "inbox item", ...rest, ruleVerdict: item.verdict, evidence: compact(evidence) }) };
   }
+  // Nothing to gather: the question says what it's about, and the agent's tools read the rest.
+  if (subject._tag === "general") return { title: "Chat", packet: JSON.stringify({ subject: "no subject: a chat the owner opened from a page" }) };
   if (subject._tag === "runners") {
     const explained = yield* (yield* RunnersExplained.RunnersExplained).explain(days).pipe(Effect.mapError(unreadable));
     const install = explained.installs.find((candidate) => candidate.install === subject.install);

@@ -7,12 +7,14 @@ import { Days, RepoName } from "./history.ts";
 export const InboxSubject = Schema.TaggedStruct("inbox", { itemId: Schema.String });
 export const RunSubject = Schema.TaggedStruct("run", { repo: RepoName, jobId: Schema.Number });
 export const RunnersSubject = Schema.TaggedStruct("runners", { install: Schema.String });
-export const ThreadSubject = Schema.Union([InboxSubject, RunSubject, RunnersSubject]);
+// A chat opened from any page, about nothing in particular: the agent starts with its tools alone.
+export const GeneralSubject = Schema.TaggedStruct("general", {});
+export const ThreadSubject = Schema.Union([InboxSubject, RunSubject, RunnersSubject, GeneralSubject]);
 export type ThreadSubject = typeof ThreadSubject.Type;
 
 // Two subjects are the same when their keys are, which is how a view finds its thread.
 export const subjectKey = (subject: ThreadSubject) =>
-  subject._tag === "inbox" ? `inbox:${subject.itemId}` : subject._tag === "run" ? `run:${subject.repo}:${subject.jobId}` : `runners:${subject.install}`;
+  subject._tag === "inbox" ? `inbox:${subject.itemId}` : subject._tag === "run" ? `run:${subject.repo}:${subject.jobId}` : subject._tag === "runners" ? `runners:${subject.install}` : "general";
 
 // A turn ends once, in one of these ways. `interrupted` covers the user stopping it and the server
 // stopping under it.

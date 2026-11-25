@@ -98,6 +98,7 @@ export const RPC_METHODS = {
   threadsList: "threads.list",
   threadsRead: "threads.read",
   threadsCreate: "threads.create",
+  threadsCreateChat: "threads.createChat",
   threadsStartTurn: "threads.startTurn",
   threadsInterrupt: "threads.interrupt",
   threadsQueueTurn: "threads.queueTurn",
@@ -245,6 +246,9 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   }),
   Rpc.make(RPC_METHODS.threadsRead, { payload: ThreadId, success: ThreadDetail, error: ThreadFailure }),
   Rpc.make(RPC_METHODS.threadsCreate, { payload: CreateThread, success: ThreadSummary, error: ThreadFailure }),
+  // A thread on no subject, for the chat that opens from any page. Its own method, so a client can
+  // tell a server that has it from one that would refuse the subject.
+  Rpc.make(RPC_METHODS.threadsCreateChat, { success: ThreadSummary, error: ThreadFailure }),
   // Returns once the question is logged; the answer arrives on the thread's stream.
   // Without `accountId`, the turn runs as the default account. Without `model`, on the account's.
   // Without `effort`, at the model's own default.
@@ -400,6 +404,7 @@ export const RPC_SCOPES = {
   [RPC_METHODS.threadsList]: THREADS,
   [RPC_METHODS.threadsRead]: THREADS,
   [RPC_METHODS.threadsCreate]: THREADS,
+  [RPC_METHODS.threadsCreateChat]: THREADS,
   [RPC_METHODS.threadsStartTurn]: THREADS,
   [RPC_METHODS.threadsInterrupt]: THREADS,
   [RPC_METHODS.threadsQueueTurn]: THREADS,

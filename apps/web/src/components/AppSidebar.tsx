@@ -1,9 +1,10 @@
 import { isInboxItemHidden } from "@runnerbox/contracts";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Gauge, GitPullRequest, Inbox, LayoutDashboard, ListTree, Server, Settings } from "lucide-react";
+import { Gauge, GitPullRequest, Inbox, LayoutDashboard, ListTree, MessageSquareText, Server, Settings } from "lucide-react";
 import type * as React from "react";
 import { useRange } from "../hooks/useRange.ts";
-import { useAtomValue } from "@effect/atom-react";
+import { useAtom, useAtomValue } from "@effect/atom-react";
+import { chatDockOpenAtom } from "../state/chatDock.ts";
 import { inboxesAtom } from "../state/inbox.ts";
 import { runnerStateEverywhereAtom } from "../state/runnerMachines.ts";
 import { useServerCapabilities } from "../hooks/useServerCapabilities.ts";
@@ -14,6 +15,7 @@ import { cn } from "../lib/utils.ts";
 import { EnvironmentMenu } from "./EnvironmentMenu.tsx";
 import { railFade } from "./railFade.ts";
 import { SidebarUpdateSlot } from "./SidebarUpdateSlot.tsx";
+import { Kbd } from "./ui/kbd.tsx";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./ui/sidebar.tsx";
 import { Toggle, ToggleGroup } from "./ui/toggle-group.tsx";
 
@@ -66,6 +68,20 @@ function ProductSwitch({ product }: { product: Product }) {
   );
 }
 
+// Opens and closes the docked chat. A button, not a page: the chat sits beside whichever page is open.
+function ChatRow() {
+  const [open, setOpen] = useAtom(chatDockOpenAtom);
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton isActive={open} tooltip="Chat" onClick={() => setOpen(!open)}>
+        <MessageSquareText />
+        <span className={railFade}>Chat</span>
+      </SidebarMenuButton>
+      <Kbd className={cn("pointer-events-none absolute top-1.5 right-2", railFade)}>⌘J</Kbd>
+    </SidebarMenuItem>
+  );
+}
+
 // The counts cover every connected machine, not only the one picked in the switcher.
 export function AppSidebar() {
   useSidebarShortcut();
@@ -76,7 +92,7 @@ export function AppSidebar() {
   const slots = [...machines.values()].flat().filter((install) => !install.stale).flatMap((install) => install.kinds.flatMap((kind) => kind.slots));
   const busy = slots.filter((slot) => slot.phase === "busy").length;
   const waiting = needsYouEverywhere(inboxes).filter((item) => !isInboxItemHidden(item)).length;
-  const { reviews } = useServerCapabilities();
+  const { reviews, chat } = useServerCapabilities();
 
   const product = productOf(path);
   const pages: Record<Product, ReadonlyArray<Page>> = {
@@ -119,6 +135,8 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          {/* Left out on a server older than the chat. */}
+          {chat ? <ChatRow /> : null}
           <PageRow page={{ to: "/inbox", label: "Inbox", icon: Inbox, count: waiting > 0 ? String(waiting) : null, alert: waiting > 0 }} path={path} />
           <PageRow page={{ to: "/settings", label: "Settings", icon: Settings }} path={path} />
         </SidebarMenu>

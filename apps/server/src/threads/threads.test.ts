@@ -203,6 +203,25 @@ test("an agent can only call runnerbox's tools, with a token that ends with its 
   }
 });
 
+test("a chat starts from no subject, and is found again as the chat's thread", () =>
+  withServer([[{ text: "Three jobs ran today." }]], async (server, fake) => {
+    const { token } = await appSession(server);
+    const { thread, found, events } = await withClient(server, token, (client) =>
+      Effect.gen(function* () {
+        const thread = yield* client["threads.createChat"]();
+        const collecting = yield* untilTurnEnds(client["threads.subscribe"]({ id: thread.id })).pipe(Effect.forkChild);
+        yield* Effect.sleep(50);
+        yield* client["threads.startTurn"]({ id: thread.id, text: "How many jobs ran today?" });
+        const events = yield* Fiber.join(collecting);
+        return { thread, events, found: yield* client["threads.list"]({ subject: { _tag: "general" } }) };
+      }),
+    );
+    assert.deepEqual(thread.subject, { _tag: "general" });
+    assert.deepEqual(found.map((each) => each.id), [thread.id]);
+    assert.ok(events.some((event) => event._tag === "TurnEnded" && event.outcome === "completed"));
+    assert.match(fake.inputs[0]?.prompt ?? "", /no subject: a chat the owner opened from a page/);
+  }));
+
 test("a thread on a run starts from that attempt's steps, attempts and verdict", () =>
   withServer([[{ text: "Looked." }]], async (server, fake) => {
     const { token } = await appSession(server);
