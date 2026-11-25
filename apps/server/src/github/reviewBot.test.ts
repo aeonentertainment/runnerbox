@@ -51,11 +51,19 @@ test("the bot is created only by the redirect its setup started, once, and its k
   try {
     const setup = await session(ALL_SCOPES, (client) => client["github.botSetup"]({ redirectBase: server.baseUrl }));
     assert.ok(Exit.isSuccess(setup));
-    const action = new URL(setup.value.action);
-    const state = action.searchParams.get("state") ?? "";
-    assert.equal(`${action.origin}${action.pathname}`, `${github.base}/settings/apps/new`);
+    // The page the browser starts on holds the form GitHub takes, for whoever has the setup's state.
+    const state = new URL(setup.value.startUrl).searchParams.get("state") ?? "";
+    assert.equal(setup.value.startUrl, `${server.baseUrl}/api/github/bot-setup?state=${state}`);
+    assert.equal((await fetch(`${server.baseUrl}/api/github/bot-setup?state=someone-elses-state`)).status, 400);
+    const form = await (await fetch(setup.value.startUrl)).text();
+    const unescape = (text: string) => text.replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)));
+    assert.equal(unescape(/<form method="post" action="([^"]*)">/.exec(form)?.[1] ?? ""), `${github.base}/settings/apps/new?state=${state}`);
     // What GitHub is asked to create: one permission, no webhook, and a way back to this server only.
-    assert.deepEqual(JSON.parse(setup.value.manifest), { name: "runnerbox reviews", url: "https://github.com", redirect_url: `${server.baseUrl}/api/github/bot-created`, public: false, default_permissions: { pull_requests: "write" }, default_events: [] });
+    assert.deepEqual(JSON.parse(unescape(/name="manifest" value="([^"]*)"/.exec(form)?.[1] ?? "")), { name: "runnerbox reviews", url: "https://github.com", redirect_url: `${server.baseUrl}/api/github/bot-created`, public: false, default_permissions: { pull_requests: "write" }, default_events: [] });
+
+    // Pressing Create again while a page is open on GitHub answers with the same setup, so that page still finishes.
+    const pressedAgain = await session(ALL_SCOPES, (client) => client["github.botSetup"]({ redirectBase: server.baseUrl }));
+    assert.ok(Exit.isSuccess(pressedAgain) && pressedAgain.value.startUrl === setup.value.startUrl);
 
     // A redirect that doesn't carry the setup's state does nothing, and GitHub isn't asked.
     assert.equal((await redirect("good-code", "someone-elses-state")).status, 400);
@@ -110,7 +118,8 @@ test("a setup is refused when GitHub would send the code anywhere but this machi
     const reader = await session(["history:read", "runners:read", "threads:operate"], (client) => client["github.botSetup"]({ redirectBase: server.baseUrl }));
     assert.ok(Exit.isFailure(reader));
     const organization = await session(ALL_SCOPES, (client) => client["github.botSetup"]({ redirectBase: server.baseUrl, organization: "example-org" }));
-    assert.ok(Exit.isSuccess(organization) && new URL(organization.value.action).pathname === "/organizations/example-org/settings/apps/new");
+    assert.ok(Exit.isSuccess(organization));
+    assert.match(await (await fetch(organization.value.startUrl)).text(), /\/organizations\/example-org\/settings\/apps\/new\?state=/);
   } finally {
     await close();
   }

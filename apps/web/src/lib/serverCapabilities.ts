@@ -43,9 +43,11 @@ export type Capabilities = {
   readonly githubPush: boolean;
   // `threads.createChat`: a chat on no subject, which opens from any page.
   readonly chat: boolean;
+  // `github.botStatus` and `github.botSetup`: the server can have a review bot of its own.
+  readonly reviewBot: boolean;
 };
 
-export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false };
+export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false };
 
 export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilities {
   if (methods === null) return NO_CAPABILITIES;
@@ -73,5 +75,6 @@ export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilit
     reviewsPush: has(RPC_METHODS.reviewsSubscribe),
     githubPush: has(RPC_METHODS.githubSubscribe),
     chat: has(RPC_METHODS.threadsCreateChat),
+    reviewBot: has(RPC_METHODS.githubBotStatus) && has(RPC_METHODS.githubBotSetup),
   };
 }
