@@ -5,6 +5,7 @@ import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
 import { AuthorizationError, type AuthScope, AuthScope as AuthScopeSchema, PairingCode, SessionSummary } from "./auth.ts";
 import { DayTotals, Days, GroupBy, JobRun, JobSummary, Overview, RepoName, RepoRuns, StepComparison, WeeklySummary } from "./history.ts";
 import { GitHubError, GitHubStatus } from "./github.ts";
+import { ReviewBotError, ReviewBotSetup, ReviewBotSetupRequest, ReviewBotStatus } from "./reviewBot.ts";
 import { Inbox, InboxItemId, InboxStateError, Instant } from "./inbox.ts";
 import { MachineHealth } from "./health.ts";
 import { JobResources } from "./resources.ts";
@@ -137,6 +138,9 @@ export const RPC_METHODS = {
   githubSignIn: "github.signIn",
   githubCancelSignIn: "github.cancelSignIn",
   githubSignOut: "github.signOut",
+  githubBotStatus: "github.botStatus",
+  githubBotSetup: "github.botSetup",
+  githubBotRemove: "github.botRemove",
   moveCiStatus: "moveCi.status",
   moveCiSetRunner: "moveCi.setRunner",
   moveCiSubscribe: "moveCi.subscribe",
@@ -310,6 +314,12 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   Rpc.make(RPC_METHODS.githubCancelSignIn, { success: GitHubStatus, error: GitHubFailure }),
   // Forgets the token. GitHub still lists the authorization until the owner revokes it there.
   Rpc.make(RPC_METHODS.githubSignOut, { success: GitHubStatus, error: GitHubFailure }),
+  // The review bot this server posts as, or none. Never its key.
+  Rpc.make(RPC_METHODS.githubBotStatus, { success: ReviewBotStatus, error: Schema.Union([AuthorizationError, ReviewBotError]) }),
+  // Starts creating the bot: the answer is the form the owner's browser posts to GitHub.
+  Rpc.make(RPC_METHODS.githubBotSetup, { payload: ReviewBotSetupRequest, success: ReviewBotSetup, error: Schema.Union([AuthorizationError, ReviewBotError]) }),
+  // Forgets the bot's key on this server. The App stays on GitHub until deleted there.
+  Rpc.make(RPC_METHODS.githubBotRemove, { success: ReviewBotStatus, error: Schema.Union([AuthorizationError, ReviewBotError]) }),
   // Where each job on the repositories the App is installed on picks its runner, and the patch
   // that moves the ones that don't read a runner variable yet. Nothing is written to GitHub.
   Rpc.make(RPC_METHODS.moveCiStatus, { success: MoveCiView, error: GitHubFailure }),
@@ -454,6 +464,11 @@ export const RPC_SCOPES = {
   [RPC_METHODS.githubSignIn]: ACCESS,
   [RPC_METHODS.githubCancelSignIn]: ACCESS,
   [RPC_METHODS.githubSignOut]: ACCESS,
+  // The bot's name says nothing a reader of history doesn't already see on its pull requests.
+  [RPC_METHODS.githubBotStatus]: HISTORY,
+  // Creating or dropping a key that writes to pull requests: the same bar as signing the server in.
+  [RPC_METHODS.githubBotSetup]: ACCESS,
+  [RPC_METHODS.githubBotRemove]: ACCESS,
   // Job names and their runners are history like a job's runs are.
   [RPC_METHODS.moveCiStatus]: HISTORY,
   [RPC_METHODS.moveCiSubscribe]: HISTORY,

@@ -16,6 +16,7 @@ import * as DailyHealth from "../runners/DailyHealth.ts";
 import * as Monitors from "../monitors/Monitors.ts";
 import * as Proposals from "../proposals/Proposals.ts";
 import * as GitHub from "../github/GitHub.ts";
+import * as ReviewBot from "../github/ReviewBot.ts";
 import * as MoveCi from "../moveCi/MoveCi.ts";
 import * as ReviewRuns from "../reviews/ReviewRuns.ts";
 import * as Reviews from "../reviews/Reviews.ts";
@@ -52,6 +53,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
       // The same scopes the server checks on monitors.save, so the switch is never offered when saving would be refused.
       const canConfigureMonitors = RPC_SCOPES[RPC_METHODS.monitorsSave].every((scope) => session.scopes.includes(scope));
       const github = yield* GitHub.GitHub;
+      const reviewBot = yield* ReviewBot.ReviewBot;
       const moveCi = yield* MoveCi.MoveCi;
       // The same scopes the server checks on moveCi.setRunner, so the switch is never offered when it would be refused.
       const mayMove = { switch: RPC_SCOPES[RPC_METHODS.moveCiSetRunner].every((scope) => session.scopes.includes(scope)) };
@@ -141,6 +143,9 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
         "github.signIn": () => github.signIn(mayReview),
         "github.cancelSignIn": () => github.cancelSignIn(mayReview),
         "github.signOut": () => github.signOut(mayReview),
+        "github.botStatus": () => Effect.map(reviewBot.status, (bot) => ({ bot })),
+        "github.botSetup": ({ redirectBase, organization }) => reviewBot.startSetup(redirectBase, organization),
+        "github.botRemove": () => Effect.as(reviewBot.remove, { bot: null }),
         "moveCi.status": () => moveCi.status(mayMove),
         "moveCi.subscribe": () => moveCi.changes(mayMove),
         "moveCi.setRunner": ({ repo, variable, label }) => moveCi.setRunner(repo, variable, label, mayMove),
