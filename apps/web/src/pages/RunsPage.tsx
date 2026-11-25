@@ -33,7 +33,7 @@ export function RunsPage() {
   const navigate = useNavigate();
   const runs = useRuns(repo, days);
   const bar = (
-    <PageBar title="All runs">
+    <PageBar title="Runs">
       {repo ? <Input value={filter} onValueChange={setFilter} placeholder="Filter by job, branch or runner" className="w-64 max-sm:hidden" size="sm" /> : null}
       <RepoPicker />
       <RangeMenu />

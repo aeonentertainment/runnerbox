@@ -24,7 +24,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const groups = [
     {
       value: "Pages",
-      items: [page("overview", "Overview", "/", LayoutDashboard), page("inbox", "Inbox", "/inbox", Inbox), page("runs", "All runs", "/runs", ListTree), page("pulls", "Pull requests", "/pulls", GitPullRequest), page("speed", "Speed and cost", "/speed", Gauge), page("runners", "Runners", "/runners", Server), page("settings", "Settings", "/settings", Settings)],
+      items: [page("overview", "Overview", "/", LayoutDashboard), page("inbox", "Inbox", "/inbox", Inbox), page("runs", "Runs", "/runs", ListTree), page("pulls", "Pull requests", "/pulls", GitPullRequest), page("speed", "Speed and cost", "/speed", Gauge), page("runners", "Runners", "/runners", Server), page("settings", "Settings", "/settings", Settings)],
     },
     {
       value: "Inbox",
