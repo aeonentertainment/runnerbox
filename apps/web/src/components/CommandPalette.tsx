@@ -1,6 +1,6 @@
 import { inboxItems } from "@runnerbox/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { CircleDot, FileText, Gauge, GitPullRequest, Inbox, LayoutDashboard, ListTree, Server, Settings } from "lucide-react";
+import { CircleDot, FileText, Gauge, GitPullRequest, LayoutDashboard, ListTree, Server, Settings } from "lucide-react";
 import { useInbox } from "../hooks/useInbox.ts";
 import { useRange } from "../hooks/useRange.ts";
 import { useRepo } from "../hooks/useRepo.ts";
@@ -12,7 +12,7 @@ import { Command, CommandCollection, CommandDialog, CommandDialogPopup, CommandG
 
 type Entry = { id: string; label: string; detail: string; icon: typeof LayoutDashboard; go: () => void };
 
-// T3 Code's command palette: jump to a page, an inbox item or a recent run by typing part of it.
+// T3 Code's command palette: jump to a page, a notification or a recent run by typing part of it.
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate();
   const inbox = useInbox().data;
@@ -20,14 +20,14 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const { repo } = useRepo();
   const runs = useRuns(repo, days);
   const keep = (previous: RootSearch) => previous;
-  const page = (id: string, label: string, to: "/" | "/inbox" | "/runs" | "/pulls" | "/speed" | "/runners" | "/settings", icon: typeof LayoutDashboard): Entry => ({ id, label, detail: "", icon, go: () => void navigate({ to, search: keep }) });
+  const page = (id: string, label: string, to: "/" | "/runs" | "/pulls" | "/speed" | "/runners" | "/settings", icon: typeof LayoutDashboard): Entry => ({ id, label, detail: "", icon, go: () => void navigate({ to, search: keep }) });
   const groups = [
     {
       value: "Pages",
-      items: [page("overview", "Overview", "/", LayoutDashboard), page("inbox", "Inbox", "/inbox", Inbox), page("runs", "Runs", "/runs", ListTree), page("pulls", "Pull requests", "/pulls", GitPullRequest), page("speed", "Speed and cost", "/speed", Gauge), page("runners", "Runners", "/runners", Server), page("settings", "Settings", "/settings", Settings)],
+      items: [page("overview", "Overview", "/", LayoutDashboard), page("runs", "Runs", "/runs", ListTree), page("pulls", "Pull requests", "/pulls", GitPullRequest), page("speed", "Speed and cost", "/speed", Gauge), page("runners", "Runners", "/runners", Server), page("settings", "Settings", "/settings", Settings)],
     },
     {
-      value: "Inbox",
+      value: "Notifications",
       items: (inbox ? inboxItems(inbox) : []).map((item): Entry => ({
         id: item.id,
         label: item.title,

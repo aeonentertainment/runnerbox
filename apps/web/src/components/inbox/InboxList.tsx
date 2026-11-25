@@ -11,7 +11,7 @@ import { InboxShelf } from "./InboxShelf.tsx";
 
 const keep = (previous: RootSearch) => previous;
 
-// The Inbox's list: what needs the owner, most costly first, then their reviews that found
+// The notifications list: what needs the owner, most costly first, then their reviews that found
 // something, then the working, snoozed and settled shelves, and what was handled without them.
 export function InboxList({ rows, machines, selectedId }: { rows: InboxRows; machines: ReadonlyArray<InboxMachine>; selectedId: string | undefined }) {
   const now = useNow(60_000);
@@ -49,14 +49,14 @@ export function InboxList({ rows, machines, selectedId }: { rows: InboxRows; mac
   };
   const waiting = rows.needsYou.length + rows.reviews.length;
   return (
-    <nav aria-label="Inbox" className="flex flex-col gap-3 px-2 py-3">
+    <nav aria-label="Notifications" className="flex flex-col gap-3 px-2 py-3">
       {waiting > 0 ? (
         <ul className="flex flex-col gap-0.5">
           {rows.needsYou.map((row) => item(row))}
           {rows.reviews.map(review)}
         </ul>
       ) : (
-        <p className="px-2.5 py-2 text-muted-foreground">Nothing needs you.</p>
+        <p className="px-2.5 py-2 text-muted-foreground">Nothing is wrong.</p>
       )}
       <div className="flex flex-col">
         <InboxShelf label="Working" count={rows.working.items.length + rows.working.reviews.length}>
