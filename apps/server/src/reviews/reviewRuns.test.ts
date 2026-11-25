@@ -134,30 +134,44 @@ test("a review reads the pull request's commit through its own tools, and what i
 test("a finished review is posted on the pull request as one comment, which the next review rewrites, and only where posting is on", async () => {
   const { github, session, ended, close } = await start(REVIEW_SCRIPT);
   const review = () => session(ALL_SCOPES, (client) => client["reviews.start"]({ repo: "owner/name", number: 7 })).then(ended);
+  // A review is done before it's posted, so one that posts is read once it says how that went.
+  const posted = async (): Promise<Review> => {
+    await review();
+    for (let tries = 0; tries < 200; tries += 1) {
+      const read = await session(["history:read"], (client) => client["reviews.read"]({ repo: "owner/name", number: 7 }));
+      const newest = Exit.isSuccess(read) ? read.value.reviews[0] : undefined;
+      if (newest !== undefined && (newest.comment !== undefined || newest.commentProblem !== undefined)) return newest;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error("The review never said whether it was posted.");
+  };
+  // Long enough for a comment to have been written, had one been going to be.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 200));
   try {
     // Turning reviews on didn't turn posting on: a first review is done and nothing is written.
     const status = await session(["history:read"], (client) => client["reviews.status"]());
     assert.ok(Exit.isSuccess(status));
     assert.deepEqual(status.value.repos, [{ repo: "owner/name", review: true, post: false }]);
     const unposted = await review();
+    await settle();
     assert.deepEqual([unposted.state, unposted.comment, github.comments.length], ["done", undefined, 0]);
     const on = await session(ALL_SCOPES, (client) => client["reviews.setPost"]({ repo: "owner/name", post: true }));
     assert.ok(Exit.isSuccess(on) && on.value.repos[0]?.post === true);
 
-    const first = await review();
+    const first = await posted();
     assert.deepEqual(first.comment, { id: 900, url: "https://github.com/owner/name/pull/7#issuecomment-900" });
     assert.deepEqual(github.comments.map((comment) => comment.wrote), ["made 900"]);
     assert.match(github.comments[0]?.body ?? "", /^### Fix 1 before merging\n/);
     assert.match(github.comments[0]?.body ?? "", /Posted by RunnerBox\.<\/sub>$/);
 
     // The next review rewrites that comment, so the pull request holds one.
-    const second = await review();
+    const second = await posted();
     assert.equal(second.comment?.id, 900);
     assert.deepEqual(github.comments.map((comment) => comment.wrote), ["made 900", "rewrote 900"]);
 
     // A comment someone deleted is made again, not counted as a failure.
     github.script.commentGone = true;
-    const third = await review();
+    const third = await posted();
     assert.deepEqual([third.comment?.id, third.commentProblem], [902, undefined]);
 
     // Turning reviews off and on again leaves posting off, so nothing is written unasked.
@@ -166,6 +180,7 @@ test("a finished review is posted on the pull request as one comment, which the 
     assert.ok(Exit.isSuccess(again) && again.value.repos[0]?.post === false);
     const written = github.comments.length;
     const quiet = await review();
+    await settle();
     assert.deepEqual([quiet.state, quiet.comment, github.comments.length], ["done", undefined, written]);
     // Posting can't be turned on for a repository whose reviews are off.
     const other = await session(ALL_SCOPES, (client) => client["reviews.setPost"]({ repo: "owner/other", post: true }));
