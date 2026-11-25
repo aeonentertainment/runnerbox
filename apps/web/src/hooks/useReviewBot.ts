@@ -8,16 +8,18 @@ import { reviewBotAtom } from "../state/reviewBot.ts";
 import { useActiveEnvironment } from "./useEnvironment.ts";
 
 // The active environment's review bot, and what this window can do about it. `available` is false
-// on a server older than the bot. `reachable` is false when the server isn't reached on this
-// machine's loopback: GitHub sends the owner's browser back to the server, so a bot can only be
-// created where the browser can reach it.
+// on a server older than the bot. `reachable` is true only for a server on this machine, reached
+// at its own loopback address: GitHub sends the owner's browser back to the server with the code
+// that buys the bot's key. A server reached over SSH answers on a forwarded port that changes when
+// the tunnel does, so the code could arrive at a port nothing of ours listens on.
 export function useReviewBot() {
   const { environment, connection } = useActiveEnvironment();
   const environmentId = environment?.environmentId ?? "";
   const status = useAtomValue(reviewBotAtom(environmentId));
   const write = useAtomSet(reviewBotAtom(environmentId));
-  const redirectBase = connection?.status === "connected" ? loopbackOrigin(connection.baseUrl) : null;
+  const redirectBase = connection?.status === "connected" && connection.route.kind === "direct" ? loopbackOrigin(connection.baseUrl) : null;
   return {
+    environmentId,
     available: useAtomValue(capabilitiesAtom(environmentId)).reviewBot,
     reachable: redirectBase !== null,
     bot: Option.getOrUndefined(AsyncResult.value(status))?.bot ?? null,

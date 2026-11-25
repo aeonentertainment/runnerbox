@@ -55,13 +55,16 @@ const decodeConversion = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.I
 
 // The form the setup's page posts to GitHub: `manifest` as its one field, to `action`.
 export type SetupForm = { readonly action: string; readonly manifest: string };
-type Pending = { readonly state: string; readonly expiresAt: number; readonly form: SetupForm };
+// `asked` is what the setup was started with, so asking for the same again finds it.
+type Pending = { readonly state: string; readonly expiresAt: number; readonly form: SetupForm; readonly asked: string };
 
 export class ReviewBot extends Context.Service<
   ReviewBot,
   {
     readonly status: Effect.Effect<ReviewBotStatus, ReviewBotError>;
-    // Starts a setup and says where the owner's browser begins it. A setup already waiting is dropped.
+    // Starts a setup and says where the owner's browser begins it. Asking again for the same owner
+    // answers with the setup already waiting, so a page the owner has open on GitHub still finishes;
+    // asking for another owner drops it.
     readonly startSetup: (redirectBase: string, organization: string | undefined) => Effect.Effect<ReviewBotSetup, ReviewBotError>;
     // The form for the setup `state` names, while it waits. Asking doesn't spend it.
     readonly setupForm: (state: string) => Effect.Effect<SetupForm | null>;
@@ -125,6 +128,9 @@ const make = Effect.gen(function* () {
     return yield* lock.withPermits(1)(
       Effect.gen(function* () {
         if ((yield* current) !== null) return yield* new ReviewBotError({ reason: "exists" });
+        const now = yield* Clock.currentTimeMillis;
+        const asked = `${redirectBase} ${organization ?? ""}`;
+        if (pending !== null && pending.asked === asked && now <= pending.expiresAt) return { startUrl: `${redirectBase}${SETUP_PATH}?state=${pending.state}` };
         const state = randomBytes(24).toString("base64url");
         const manifest = {
           // The owner can change the name on GitHub's page; App names are unique across GitHub.
@@ -136,7 +142,7 @@ const make = Effect.gen(function* () {
           default_events: [],
         };
         const owner = organization === undefined ? "" : `/organizations/${organization}`;
-        pending = { state, expiresAt: (yield* Clock.currentTimeMillis) + SETUP_MS, form: { action: `${site}${owner}/settings/apps/new?state=${state}`, manifest: JSON.stringify(manifest) } };
+        pending = { state, asked, expiresAt: now + SETUP_MS, form: { action: `${site}${owner}/settings/apps/new?state=${state}`, manifest: JSON.stringify(manifest) } };
         return { startUrl: `${redirectBase}${SETUP_PATH}?state=${state}` };
       }),
     );

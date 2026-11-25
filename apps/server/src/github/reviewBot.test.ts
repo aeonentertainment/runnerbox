@@ -61,6 +61,10 @@ test("the bot is created only by the redirect its setup started, once, and its k
     // What GitHub is asked to create: one permission, no webhook, and a way back to this server only.
     assert.deepEqual(JSON.parse(unescape(/name="manifest" value="([^"]*)"/.exec(form)?.[1] ?? "")), { name: "runnerbox reviews", url: "https://github.com", redirect_url: `${server.baseUrl}/api/github/bot-created`, public: false, default_permissions: { pull_requests: "write" }, default_events: [] });
 
+    // Pressing Create again while a page is open on GitHub answers with the same setup, so that page still finishes.
+    const pressedAgain = await session(ALL_SCOPES, (client) => client["github.botSetup"]({ redirectBase: server.baseUrl }));
+    assert.ok(Exit.isSuccess(pressedAgain) && pressedAgain.value.startUrl === setup.value.startUrl);
+
     // A redirect that doesn't carry the setup's state does nothing, and GitHub isn't asked.
     assert.equal((await redirect("good-code", "someone-elses-state")).status, 400);
     assert.deepEqual(github.asked, []);

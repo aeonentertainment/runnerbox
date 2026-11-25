@@ -14,9 +14,12 @@ const words = (cause: unknown) => (cause instanceof Error ? cause.message : "Tha
 // finished on GitHub, in the browser, so this starts it and then waits for the server to say the
 // bot exists. `canConfigure` is whether this device may sign the server in, which is the same bar.
 export function ReviewBotSection({ canConfigure }: { canConfigure: boolean }) {
-  const { available, reachable, bot, known, setup, remove } = useReviewBot();
+  const { environmentId, available, reachable, bot, known, setup, remove } = useReviewBot();
   const [organization, setOrganization] = useState("");
-  const [startUrl, setStartUrl] = useState<string | null>(null);
+  // The setup this window started, kept with the environment it was started on so another
+  // environment's page never offers it.
+  const [started, setStarted] = useState<{ readonly environmentId: string; readonly url: string } | null>(null);
+  const startUrl = started?.environmentId === environmentId ? started.url : null;
   const [error, setError] = useState<string | null>(null);
   const { copyToClipboard, isCopied } = useCopyToClipboard();
   if (!available || !known) return null;
@@ -47,7 +50,7 @@ export function ReviewBotSection({ canConfigure }: { canConfigure: boolean }) {
               title="Remove the bot"
               description="Deletes its key from this server. The app stays on GitHub until you delete it there."
               control={
-                <Button size="sm" variant="destructive-outline" onClick={() => act(remove().then(() => setStartUrl(null)))}>
+                <Button size="sm" variant="destructive-outline" onClick={() => act(remove().then(() => setStarted(null)))}>
                   Remove
                 </Button>
               }
@@ -66,6 +69,10 @@ export function ReviewBotSection({ canConfigure }: { canConfigure: boolean }) {
               <Button size="sm" variant="outline" onClick={() => copyToClipboard(startUrl)}>
                 {isCopied ? "Copied" : "Copy link"}
               </Button>
+              {/* The link stops working after an hour, and the owner may have picked the wrong organization. */}
+              <Button size="sm" variant="ghost" onClick={() => setStarted(null)}>
+                Start over
+              </Button>
             </div>
           }
         />
@@ -77,13 +84,13 @@ export function ReviewBotSection({ canConfigure }: { canConfigure: boolean }) {
               ? "This device can't create one."
               : reachable
                 ? "Create a GitHub app of your own for this server, so reviews are posted to pull requests under a bot's name. It asks to write to pull requests and nothing else. Leave the organization empty to own it yourself."
-                : "Open runnerbox on the server's own machine, or reach it over SSH, to create one. GitHub has to send your browser back to the server."
+                : "Open runnerbox on the server's own machine to create one. GitHub has to send your browser back to the server."
           }
           control={
             canConfigure && reachable ? (
               <div className="flex items-center gap-2">
                 <Input size="sm" aria-label="Organization" placeholder="Organization" className="w-36" value={organization} onChange={(event) => setOrganization(event.target.value)} />
-                <Button size="sm" onClick={() => act(setup(organization).then(setStartUrl))}>
+                <Button size="sm" onClick={() => act(setup(organization).then((url) => setStarted({ environmentId, url })))}>
                   Create review bot
                 </Button>
               </div>
