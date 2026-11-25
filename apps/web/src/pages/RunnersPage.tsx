@@ -62,7 +62,7 @@ export function RunnersPage() {
     return (
       <>
         {bar}
-        <ThreadColumn key={install ? picked.key : picked.environmentId} subject={install ? { _tag: "runners", install: install.install } : null} placeholder="Ask about these runners">
+        <ThreadColumn key={install ? picked.key : picked.environmentId} subject={install ? { _tag: "runners", install: install.install } : null} title="These runners" placeholder="Ask about these runners">
           {(thread) => <WorkspacePageContainer className="gap-9 pb-8 text-[13px]">{view(thread.ready && thread.view.items.length === 0 && thread.permitted && thread.provider?.available ? { send: () => void thread.send(RUNNERS_QUESTION) } : null)}</WorkspacePageContainer>}
         </ThreadColumn>
       </>

@@ -14,6 +14,7 @@ import type { RootSearch } from "../lib/search.ts";
 import { cn } from "../lib/utils.ts";
 import { EnvironmentMenu } from "./EnvironmentMenu.tsx";
 import { railFade } from "./railFade.ts";
+import { useChatDockAvailable } from "./ChatDock.tsx";
 import { SidebarUpdateSlot } from "./SidebarUpdateSlot.tsx";
 import { Kbd } from "./ui/kbd.tsx";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./ui/sidebar.tsx";
@@ -92,7 +93,8 @@ export function AppSidebar() {
   const slots = [...machines.values()].flat().filter((install) => !install.stale).flatMap((install) => install.kinds.flatMap((kind) => kind.slots));
   const busy = slots.filter((slot) => slot.phase === "busy").length;
   const waiting = needsYouEverywhere(inboxes).filter((item) => !isInboxItemHidden(item)).length;
-  const { reviews, chat } = useServerCapabilities();
+  const { reviews } = useServerCapabilities();
+  const chat = useChatDockAvailable();
 
   const product = productOf(path);
   const pages: Record<Product, ReadonlyArray<Page>> = {
@@ -135,7 +137,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          {/* Left out on a server older than the chat. */}
+          {/* Left out where the dock would be empty: a page with no thread, on a server older than the chat. */}
           {chat ? <ChatRow /> : null}
           <PageRow page={{ to: "/inbox", label: "Inbox", icon: Inbox, count: waiting > 0 ? String(waiting) : null, alert: waiting > 0 }} path={path} />
           <PageRow page={{ to: "/settings", label: "Settings", icon: Settings }} path={path} />
