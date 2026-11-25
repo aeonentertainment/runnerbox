@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { openSession, pairWithCode } from "@runnerbox/client-runtime";
 import { ALL_SCOPES, type AuthScope } from "@runnerbox/contracts";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import { startTestServer } from "../testing/testServer.ts";
@@ -17,8 +18,11 @@ const TIMING = { pollMs: 50, slowMs: 300, maxBackoffMs: 400, idleMs: 200, checkM
 async function fakeGitHub() {
   const pem = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ type: "pkcs1", format: "pem" }).toString();
   const asked: string[] = [];
+  // Set to answer as GitHub does when it's down.
+  const script = { down: false };
   const server = createServer((request, response) => {
     asked.push(`${request.method} ${request.url}`);
+    if (script.down) return void response.writeHead(503).end();
     if (request.method === "POST" && request.url === "/app-manifests/good-code/conversions")
       return void response.writeHead(201, { "content-type": "application/json" }).end(JSON.stringify({ id: 42, client_id: "Iv1.example", slug: "example-reviews", name: "Example Reviews", pem, client_secret: "not-a-real-client-secret", webhook_secret: null }));
     response.writeHead(404, { "content-type": "application/json" }).end("{}");
@@ -26,7 +30,7 @@ async function fakeGitHub() {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   const base = `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`;
-  return { base, pem, asked, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
+  return { base, pem, asked, script, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
 }
 
 async function start() {
@@ -51,11 +55,19 @@ test("the bot is created only by the redirect its setup started, once, and its k
     const state = action.searchParams.get("state") ?? "";
     assert.equal(`${action.origin}${action.pathname}`, `${github.base}/settings/apps/new`);
     // What GitHub is asked to create: one permission, no webhook, and a way back to this server only.
-    assert.deepEqual(JSON.parse(setup.value.manifest), { name: "runnerbox reviews", url: "https://runnerbox.dev", redirect_url: `${server.baseUrl}/api/github/bot-created`, public: false, default_permissions: { pull_requests: "write" }, default_events: [] });
+    assert.deepEqual(JSON.parse(setup.value.manifest), { name: "runnerbox reviews", url: "https://github.com", redirect_url: `${server.baseUrl}/api/github/bot-created`, public: false, default_permissions: { pull_requests: "write" }, default_events: [] });
 
     // A redirect that doesn't carry the setup's state does nothing, and GitHub isn't asked.
     assert.equal((await redirect("good-code", "someone-elses-state")).status, 400);
     assert.deepEqual(github.asked, []);
+
+    // GitHub down when the code is traded: nothing is saved, and the same redirect works once it's back.
+    github.script.down = true;
+    assert.equal((await redirect("good-code", state)).status, 502);
+    const none = await session(["history:read"], (client) => client["github.botStatus"]());
+    assert.ok(Exit.isSuccess(none) && none.value.bot === null);
+    github.script.down = false;
+    github.asked.length = 0;
 
     const created = await redirect("good-code", state);
     assert.equal(created.status, 200);
@@ -91,7 +103,7 @@ test("a setup is refused when GitHub would send the code anywhere but this machi
   try {
     for (const redirectBase of ["https://example.com", "http://example.com:4517", "http://127.0.0.1:4517/elsewhere", "http://127.0.0.1.example.com:80"]) {
       const refused = await session(ALL_SCOPES, (client) => client["github.botSetup"]({ redirectBase }));
-      assert.ok(Exit.isFailure(refused), `${redirectBase} is refused`);
+      assert.match(Exit.isFailure(refused) ? String(Cause.squash(refused.cause)) : "", /loopback/, `${redirectBase} is refused for where it points`);
     }
     const badOrganization = await session(ALL_SCOPES, (client) => client["github.botSetup"]({ redirectBase: server.baseUrl, organization: "owner/../settings" }));
     assert.ok(Exit.isFailure(badOrganization));

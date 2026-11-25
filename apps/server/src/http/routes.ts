@@ -85,6 +85,7 @@ const botCreated = HttpRouter.add(
     const bot = yield* ReviewBot.ReviewBot;
     const query = Option.getOrUndefined(HttpServerRequest.toURL(yield* HttpServerRequest.HttpServerRequest))?.searchParams;
     const outcome = yield* bot.finishSetup(query?.get("code") ?? "", query?.get("state") ?? "");
+    if (outcome === "unreachable") return page(502, "GitHub didn't answer", "The review bot isn't saved yet. Reload this page to try again.");
     return outcome === "created"
       ? page(200, "Review bot created", "Go back to runnerbox to pick the repositories it may comment on.")
       : page(400, "That link didn't create a review bot", "It was already used, it ran out, or it wasn't started from runnerbox. Start again from Settings.");
@@ -95,5 +96,5 @@ const botCreated = HttpRouter.add(
 // user's browser has nothing it could ride on.
 const cors = HttpRouter.cors({ allowedHeaders: ["authorization", "content-type", "dpop"], maxAge: 600 });
 
-// The bot's redirect is answered only on the loopback listener, which is where its setup sends it.
+// The bot's redirect is answered only on the listener apps use, never the tunnel's.
 export const layer = (entry: AuthStore.Entry) => Layer.mergeAll(descriptor, pair(entry), wsTicket(entry), cors, ...(entry === "local" ? [botCreated] : []));

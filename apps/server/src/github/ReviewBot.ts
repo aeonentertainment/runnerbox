@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
-import { type ReviewBot as ReviewBotView, ReviewBotError, type ReviewBotSetup } from "@runnerbox/contracts";
+import { ReviewBotError, type ReviewBotSetup, type ReviewBotStatus } from "@runnerbox/contracts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -12,6 +12,7 @@ import * as Semaphore from "effect/Semaphore";
 import { writeFileAtomic } from "../config/atomicWrite.ts";
 import * as ServerPaths from "../config/ServerPaths.ts";
 import { QueueConfig } from "../runners/QueueConfig.ts";
+import { releaseRepository } from "../update/releaseRepository.ts";
 
 // The review bot: a GitHub App the owner creates for this server through GitHub's manifest flow, so
 // a review is posted under a bot's name. The owner's browser posts a manifest to GitHub, confirms
@@ -24,7 +25,9 @@ const GITHUB = "https://github.com";
 const TIMEOUT_MS = 15_000;
 // GitHub gives an hour to finish the flow; a setup nobody finished is forgotten then.
 const SETUP_MS = 60 * 60_000;
-const HOMEPAGE = "https://runnerbox.dev";
+// The App's homepage on GitHub: the repository this build was released from, or GitHub itself for a
+// build from a checkout, which names none.
+const HOMEPAGE = releaseRepository === null ? GITHUB : `${GITHUB}/${releaseRepository}`;
 
 // Where GitHub may send the browser back: this machine's loopback only, so the code that buys the
 // key can't be sent to another host.
@@ -54,14 +57,15 @@ type Pending = { readonly state: string; readonly expiresAt: number };
 export class ReviewBot extends Context.Service<
   ReviewBot,
   {
-    readonly status: Effect.Effect<ReviewBotView | null, ReviewBotError>;
+    readonly status: Effect.Effect<ReviewBotStatus, ReviewBotError>;
     // Starts a setup and says what the browser posts to GitHub. A setup already waiting is dropped.
     readonly startSetup: (redirectBase: string, organization: string | undefined) => Effect.Effect<ReviewBotSetup, ReviewBotError>;
     // GitHub sent the browser back with `code`. Only the setup that was started, named by `state`,
-    // is finished, and only once.
-    readonly finishSetup: (code: string, state: string) => Effect.Effect<"created" | "refused", ReviewBotError>;
+    // is finished, and only once. `unreachable` is GitHub not answering: the setup still waits, so
+    // the same redirect can be tried again.
+    readonly finishSetup: (code: string, state: string) => Effect.Effect<"created" | "refused" | "unreachable", ReviewBotError>;
     // Forgets the key. The App stays on GitHub until the owner deletes it there.
-    readonly remove: Effect.Effect<void, ReviewBotError>;
+    readonly remove: Effect.Effect<ReviewBotStatus, ReviewBotError>;
   }
 >()("runnerbox/server/github/ReviewBot") {}
 
@@ -95,16 +99,18 @@ const make = Effect.gen(function* () {
         ),
   );
 
-  const view = (bot: Stored): ReviewBotView => ({ slug: bot.slug, name: bot.name, installUrl: `${site}/apps/${bot.slug}/installations/new`, createdAt: bot.createdAt });
+  const view = (bot: Stored | null): ReviewBotStatus => ({ bot: bot === null ? null : { slug: bot.slug, name: bot.name, installUrl: `${site}/apps/${bot.slug}/installations/new`, createdAt: bot.createdAt } });
 
   // The one call that needs no token: the code is the credential. A redirect is never followed.
+  // GitHub saying no (a 4xx) is told apart from GitHub not answering, which is worth another try.
   const convert = (code: string) =>
-    Effect.promise(async (): Promise<unknown> => {
+    Effect.promise(async (): Promise<{ readonly kind: "ok"; readonly body: unknown } | { readonly kind: "refused" | "unreachable" }> => {
       try {
         const response = await fetch(`${config.apiBase}/app-manifests/${code}/conversions`, { method: "POST", redirect: "manual", headers: { accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-        return response.ok ? await response.json() : null;
+        if (response.ok) return { kind: "ok", body: await response.json() };
+        return { kind: response.status >= 400 && response.status < 500 ? "refused" : "unreachable" };
       } catch {
-        return null;
+        return { kind: "unreachable" };
       }
     });
 
@@ -136,13 +142,18 @@ const make = Effect.gen(function* () {
       Effect.gen(function* () {
         const waiting = pending;
         if (waiting === null || !CODE.test(code) || !sameText(waiting.state, state) || (yield* Clock.currentTimeMillis) > waiting.expiresAt) return "refused" as const;
-        // Spent before GitHub is asked, so a second redirect with the same state does nothing.
+        const reply = yield* convert(code);
+        // The App may already exist on GitHub, and the code is good for the rest of the hour, so the
+        // setup is kept for the owner to reload the page.
+        if (reply.kind === "unreachable") return "unreachable" as const;
+        // Spent from here: under the lock, a second redirect with the same state finds no setup.
         pending = null;
-        const answer = decodeConversion(yield* convert(code));
+        const answer = reply.kind === "ok" ? decodeConversion(reply.body) : Option.none();
         if (Option.isNone(answer)) return "refused" as const;
         const next: Stored = { v: 1, appId: answer.value.id, clientId: answer.value.client_id, slug: answer.value.slug, name: answer.value.name, privateKey: answer.value.pem, createdAt: new Date(yield* Clock.currentTimeMillis).toISOString() };
-        stored = next;
         yield* fs.makeDirectory(serverDir, { recursive: true, mode: 0o700 }).pipe(Effect.andThen(writeFileAtomic(fs, path, `${JSON.stringify(next)}\n`)), Effect.mapError(unreadable));
+        // Only once it's on disk, so a bot is never shown that a restart would lose.
+        stored = next;
         return "created" as const;
       }),
     );
@@ -152,11 +163,12 @@ const make = Effect.gen(function* () {
     Effect.suspend(() => {
       stored = null;
       pending = null;
-      return fs.remove(path, { force: true }).pipe(Effect.mapError(unreadable));
+      return fs.remove(path, { force: true }).pipe(Effect.mapError(unreadable), Effect.as(view(null)));
     }),
   );
 
-  return ReviewBot.of({ status: Effect.map(current, (bot) => (bot === null ? null : view(bot))), startSetup, finishSetup, remove });
+  // Under the lock too, so a first read can't put back what a remove just dropped.
+  return ReviewBot.of({ status: lock.withPermits(1)(Effect.map(current, view)), startSetup, finishSetup, remove });
 });
 
 export const layer = Layer.effect(ReviewBot, make);
