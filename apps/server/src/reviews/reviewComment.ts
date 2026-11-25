@@ -3,56 +3,85 @@ import type { Review, ReviewFinding } from "@runnerbox/contracts";
 // The comment a finished review leaves on its pull request, as Markdown. It's posted under the
 // owner's own name, so nothing the reviewer wrote may act there: its words are data from a model
 // that read code anyone could have written. They're shown as plain text, with no mention that
-// would notify someone, no link or reference, and no markup of their own. Only this file's own
+// would notify someone, no link or reference of any kind, and no markup of their own. Only this file's own
 // structure, the link it builds to the reviewed lines, and the code excerpts in their fences are
 // Markdown.
 
 // GitHub refuses a comment longer than 65,536 characters.
 const MAX_CHARS = 60_000;
 const FOOTER = "Posted by RunnerBox";
-// A zero-width space. GitHub turns names, addresses and numbers into links after Markdown is
-// rendered, whatever was escaped, so each thing it looks for is broken in two with one of these.
-const GAP = "​";
+// A zero-width space. After Markdown is rendered, GitHub goes over the text and links what it
+// recognises, whatever was escaped: names, issues and pull requests by number or by path,
+// addresses, commit hashes, advisories, a repository's own ticket prefixes, and maths between
+// dollar signs. Every one of those is letters and digits held together by punctuation, or a long
+// run of hex digits. So rather than list them, one of these goes around every punctuation
+// character, between a letter and a digit, and into any long run of hex digits, and nothing the
+// reviewer wrote is left whole enough to recognise.
+const GAP = "\u200b";
+const PUNCTUATION = /[!-/:-@[-`{-~]/;
+// GitHub links a commit by seven or more hex digits, so no run is left longer than six.
+const HEX_RUN = 6;
 
-// Breaks what GitHub would link on its own: a mention (@name, @org/team, an email), an issue or
-// pull request (#1, GH-1, owner/name#1), an address (anything://, www.), and a commit by its hash.
-const unlinked = (text: string) =>
-  text
-    .replace(/@/g, `@${GAP}`)
-    .replace(/#/g, `#${GAP}`)
-    .replace(/\bGH-/gi, (found) => `${found}${GAP}`)
-    .replace(/:\/\//g, `:${GAP}//`)
-    .replace(/www\./gi, (found) => `${found.slice(0, 3)}${GAP}.`)
-    .replace(/[0-9a-f]{7,}/gi, (found) => found.replace(/.{6}(?=.)/g, (six) => `${six}${GAP}`));
+// One line, with nothing invisible of the reviewer's own left in it: line breaks and tabs become
+// spaces, and control and formatting characters go, among them the ones that reverse the reading
+// order or hide text, and any gap the reviewer placed to line up with ours.
+const clean = (text: string) => text.replace(/\s+/gu, " ").replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, "").trim();
 
-const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
+// The text with a gap wherever GitHub could otherwise recognise something, each character written
+// by `write`, which escapes it for where the text is going.
+const inert = (text: string, write: (character: string) => string) => {
+  let out = "";
+  let before: "letter" | "digit" | "other" = "other";
+  let hex = 0;
+  for (const character of clean(text)) {
+    const kind = /\p{N}/u.test(character) ? "digit" : /\p{L}/u.test(character) ? "letter" : "other";
+    hex = /[0-9a-f]/i.test(character) ? hex + 1 : 0;
+    if (PUNCTUATION.test(character)) out += `${GAP}${write(character)}${GAP}`;
+    else out += `${(kind !== "other" && before !== "other" && kind !== before) || (hex > HEX_RUN && (hex - 1) % HEX_RUN === 0) ? GAP : ""}${write(character)}`;
+    before = kind;
+  }
+  return out;
+};
 
 // For a Markdown paragraph: every ASCII punctuation character escaped, which Markdown allows for
 // all of them, so none starts a link, emphasis, a list, a heading, a tag or anything else.
-const asText = (text: string) => unlinked(oneLine(text)).replace(/[!-/:-@[-`{-~]/g, (character) => `\\${character}`);
+const asText = (text: string) => inert(text, (character) => (PUNCTUATION.test(character) ? `\\${character}` : character));
 
 // For inside this file's own HTML tags, where Markdown's escapes aren't read: everything but
 // letters, digits and spaces as a character reference, so no tag or reference of the reviewer's survives.
-const asHtml = (text: string) => unlinked(oneLine(text)).replace(/[^A-Za-z0-9 ​]/gu, (character) => `&#${character.codePointAt(0)};`);
+const asHtml = (text: string) => inert(text, (character) => (/[A-Za-z0-9 ]/.test(character) ? character : `&#${character.codePointAt(0)};`));
 
-// A fence longer than any run of backticks in what it holds, so the code can't close it.
+// GitHub stops honouring a fence somewhere past 250 backticks, and the code after it would render
+// as Markdown. So a run that long in the code is cut with a gap, and the fence stays short.
+const LONGEST_RUN = 100;
+// A line of the excerpt longer than this is cut, so one minified line can't crowd the rest out.
+const LONGEST_LINE = 400;
+// A fence longer than any run of backticks in what it holds, so the code can't close it. Each
+// line stays one line, and keeps nothing that reverses or hides text.
 const fenced = (lines: ReadonlyArray<string>) => {
-  const longest = Math.max(2, ...lines.flatMap((line) => [...line.matchAll(/`+/g)].map((run) => run[0].length)));
+  const shown = lines.map((line) => line.replace(/[\r\n\u2028\u2029\u0085]/g, " ").replace(/[\p{Cf}\p{Cs}]/gu, "").replace(new RegExp(`\`{${LONGEST_RUN}}(?=\`)`, "g"), (run) => `${run}${GAP}`)).map((line) => (line.length > LONGEST_LINE ? `${line.slice(0, LONGEST_LINE)}…` : line));
+  const longest = Math.max(2, ...shown.flatMap((line) => [...line.matchAll(/`+/g)].map((run) => run[0].length)));
   const fence = "`".repeat(longest + 1);
-  return [fence, ...lines.map((line) => line.replace(/[\r\n]/g, " ")), fence].join("\n");
+  return [fence, ...shown, fence].join("\n");
 };
 
-const lines = (finding: ReviewFinding) => (finding.startLine >= 1 ? `${finding.startLine}${finding.endLine > finding.startLine ? `-${finding.endLine}` : ""}` : "");
+// The lines a finding points at, when they're line numbers a file could have.
+const MAX_LINE = 10_000_000;
+const isLine = (line: number) => Number.isSafeInteger(line) && line >= 1 && line <= MAX_LINE;
+const range = (finding: ReviewFinding, join: string, prefix = "") =>
+  isLine(finding.startLine) ? `${prefix}${finding.startLine}${isLine(finding.endLine) && finding.endLine > finding.startLine ? `${join}${prefix}${finding.endLine}` : ""}` : "";
 
 // The reviewed lines on GitHub, at the commit that was reviewed, so the link stays right after
 // later pushes. The path is the reviewer's word, so it becomes a link only when it names a file
 // plainly, each part of it percent-encoded so nothing in it can end the link or leave the commit.
 const linesUrl = (site: string, review: Review, finding: ReviewFinding) => {
+  // A path with half of a character pair in it can't be encoded at all.
+  if (!finding.path.isWellFormed()) return null;
   const parts = finding.path.split("/");
   if (parts.some((part) => part === "" || part === "." || part === ".." || /[\u0000-\u001f\u007f]/.test(part))) return null;
   const path = parts.map((part) => encodeURIComponent(part).replace(/[!'()*~]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)).join("/");
-  const range = finding.startLine >= 1 ? `#L${finding.startLine}${finding.endLine > finding.startLine ? `-L${finding.endLine}` : ""}` : "";
-  return `${site}/${review.repo}/blob/${review.headSha}/${path}${range}`;
+  const fragment = range(finding, "-", "L");
+  return `${site}/${review.repo}/blob/${review.headSha}/${path}${fragment ? `#${fragment}` : ""}`;
 };
 
 const headline = (review: Review) => {
@@ -63,17 +92,18 @@ const headline = (review: Review) => {
   return "No problems found";
 };
 
-const detail = (site: string, review: Review, finding: ReviewFinding) => {
+// `withCode` leaves the excerpt out, for a finding that wouldn't fit with it.
+const detail = (site: string, review: Review, finding: ReviewFinding, withCode: boolean) => {
   const url = linesUrl(site, review, finding);
-  const where = asText(`${finding.path}${lines(finding) ? `:${lines(finding)}` : ""}`);
+  const where = asText(`${finding.path}${range(finding, "-") ? `:${range(finding, "-")}` : ""}`);
   return [
     `<details><summary><b>${finding.priority}</b> ${asHtml(finding.title)}</summary>`,
     "",
     url === null ? where : `[${where}](${url})`,
     "",
-    ...finding.body.split(/\n{2,}/).flatMap((paragraph) => (oneLine(paragraph) === "" ? [] : [asText(paragraph), ""])),
+    ...finding.body.split(/\n{2,}/).flatMap((paragraph) => (clean(paragraph) === "" ? [] : [asText(paragraph), ""])),
     ...(finding.rule === null ? [] : [`Rule it breaks: ${asText(finding.rule)}`, ""]),
-    ...(finding.code.length === 0 ? [] : [fenced(finding.code.map((line) => line.text)), ""]),
+    ...(!withCode || finding.code.length === 0 ? [] : [fenced(finding.code.map((line) => line.text)), ""]),
     "</details>",
   ].join("\n");
 };
@@ -92,10 +122,11 @@ export function reviewComment(review: Review, site = "https://github.com") {
   const details: string[] = [];
   let used = [...head, ...foot].join("\n").length;
   let left = 0;
-  // A finding too long to fit is left out, and the ones after it still get their chance.
+  // A finding that doesn't fit is shown without its code, and left out only if that doesn't fit
+  // either. The ones after it still get their chance.
   for (const finding of review.findings) {
-    const next = detail(site, review, finding);
-    if (used + next.length + 1 > MAX_CHARS) left += 1;
+    const next = [true, false].map((withCode) => detail(site, review, finding, withCode)).find((each) => used + each.length + 1 <= MAX_CHARS);
+    if (next === undefined) left += 1;
     else {
       details.push(next);
       used += next.length + 1;

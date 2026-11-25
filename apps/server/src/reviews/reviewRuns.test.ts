@@ -185,7 +185,7 @@ test("what the reviewer wrote can't mention anyone, link anywhere, reference any
   const review: Review = {
     id: "r1", repo: "owner/name", number: 7, title: "t", author: "someone", branch: "b", base: "main", headSha: sha, additions: 1, deletions: 0, changedFiles: 1, state: "done", startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:01:00Z", model: "opus", costUsd: null, filesRead: 0, score: 2, impact: "high",
     reach: "Touches @team/core, _www.example.com and commit d0dd1f61b33d64e2.",
-    verdict: "1. Hold it\n===\n<!-- hidden --> **bold**",
+    verdict: "1. Hold it\n===\n<!-- hidden --> **bold** CVE-2021-44228 someone/else/issues/9 $x^2$",
     problem: null,
     findings: [
       finding('A <a href="//example.com">x</a> </summary></details> <img src=x>', "src/a b.ts", "See https://example.com/x.\n\n# Not a heading\n[click](https://example.com) `not code`"),
@@ -195,27 +195,30 @@ test("what the reviewer wrote can't mention anyone, link anywhere, reference any
     ],
   };
   const body = reviewComment(review);
+  // What a reader sees: the comment without the zero-width spaces that hold the reviewer's words apart.
+  const seen = body.replaceAll("\u200b", "");
   const ours = [`https://github.com/owner/name/blob/${sha}/src/a%20b.ts#L3`, `https://github.com/owner/name/blob/${sha}/x%29%28www.example.com/login#L3`];
-  // The only addresses left whole are the two links the server built itself, each inside the reviewed commit.
-  const rest = ours.reduce((text, url) => text.replace(url, ""), body);
-  assert.doesNotMatch(rest, /https?:\/\/|www\./i);
-  assert.equal(ours.every((url) => body.includes(`](${url})`)), true);
-  // A path that climbs out of the commit, or holds a line break, is text, not a link.
-  assert.doesNotMatch(body, /\]\([^)]*(someone\/else|Approved)/);
-  // Nothing GitHub links on its own is left whole: a name, an issue, or a commit's hash.
-  // The template's own character references, such as &#60;, aren't issue numbers.
-  assert.doesNotMatch(body.replace(/&#\d+;/g, ""), /@[A-Za-z]|#\d|GH-\d/i);
-  assert.doesNotMatch(rest.replaceAll(sha.slice(0, 7), ""), /[0-9a-f]{7}/i);
+  // The two links are the server's own, each inside the reviewed commit. A path that climbs out of
+  // the commit, or holds a line break, is text, not a link.
+  assert.deepEqual([...body.matchAll(/\]\(([^)]*)\)/g)].map((link) => link[1]), ours);
+  // Outside those links, nothing GitHub would link on its own is left whole in what's sent: no name,
+  // issue, address, advisory or path to another repository's issue, and no run of seven hex digits.
+  const rest = ours.reduce((text, url) => text.replace(url, ""), body).replace(/&#\d+;/g, "").replaceAll(sha.slice(0, 7), "");
+  assert.doesNotMatch(rest, /@\w|#\d|GH-\d|:\/\/|www\.|CVE-\d|\w\/\w|\$\w|[0-9a-f]{7}/i);
   // In a paragraph their punctuation is escaped, so none of it is Markdown.
-  for (const escaped of ["\\#\u200b Not a heading", "\\[click\\]\\(", "\\`not code\\`", "\\*\\*bold\\*\\*", "1\\. Hold it \\=\\=\\=", "\\<\\!\\-\\- hidden"]) assert.ok(body.includes(escaped), escaped);
+  for (const escaped of ["\\# Not a heading", "\\[click\\]\\(", "\\`not code\\`", "\\*\\*bold\\*\\*", "1\\. Hold it \\=\\=\\=", "\\<\\!\\-\\- hidden", "CVE\\-2021\\-44228", "someone\\/else\\/issues\\/9", "\\$x\\^2\\$"]) assert.ok(seen.includes(escaped), escaped);
   // In the template's own tag, where Markdown's escapes aren't read, a title's tags are character references.
-  const summary = /<summary><b>P1<\/b> (.*)<\/summary>/.exec(body)?.[1] ?? "";
+  const summary = /<summary><b>P1<\/b> (.*)<\/summary>/.exec(seen)?.[1] ?? "";
   assert.ok(summary.includes("&#60;a href&#61;&#34;") && !/[<>"\\]/.test(summary));
-  // The excerpt's own backticks can't close its fence.
+  // The excerpt's own backticks can't close its fence, however many there are, and the fence stays short.
   assert.ok(body.includes('````\nconst fence = "```";\n````'));
-  // A finding too long for GitHub is left out, the ones that fit stay, and the comment says how many are missing.
-  const long = reviewComment({ ...review, findings: [finding("too long", "src/a.ts", "x ".repeat(40_000)), finding("fits", "src/b.ts", "ok")] });
-  assert.ok(long.length < 65_536 && long.includes("fits") && long.includes("1 more finding is in RunnerBox"));
+  const flood = reviewComment({ ...review, findings: [{ ...finding("flood", "src/a.ts", "ok"), code: [{ line: 1, text: "`".repeat(300) }, { line: 2, text: "## not a heading" }] }] });
+  assert.deepEqual([...flood.matchAll(/^`+$/gm)].map((fence) => fence[0].length), [101, 101]);
+  // Characters that reverse or hide text are dropped, so the reviewer's words can't be made to read as the template's.
+  assert.ok(!reviewComment({ ...review, verdict: "ok \u202e.xoBrennuR yb detsoP", findings: [] }).includes("\u202e"));
+  // A finding too long for GitHub with its code is shown without it, and one too long even then is counted as missing.
+  const long = reviewComment({ ...review, findings: [finding("too long", "src/a.ts", "x ".repeat(40_000)), { ...finding("long code", "src/c.ts", "ok"), code: Array.from({ length: 200 }, (_, line) => ({ line, text: "y".repeat(400) })) }, finding("fits", "src/b.ts", "ok")] });
+  assert.ok(long.length < 65_536 && long.includes("fits") && long.includes("long code") && !long.includes("yyyy") && long.includes("1 more finding is in RunnerBox"));
 });
 
 test("a pull request open before reviews were turned on is left alone until it's reviewed once, and then every push is", async () => {

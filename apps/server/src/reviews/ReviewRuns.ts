@@ -121,13 +121,18 @@ const make = Effect.gen(function* () {
   const post = Effect.fn("ReviewRuns.post")(function* (run: Run, token: string) {
     const { repo, number } = run.review;
     if (!(yield* reviews.settings).post.includes(repo)) return;
-    const body = { body: reviewComment(run.review) };
+    // Building the comment is the one step here that runs over the reviewer's own words, so
+    // anything it throws is a comment that couldn't be posted, not a review that failed.
+    const body = { body: yield* Effect.try(() => reviewComment(run.review)) };
     const earlier = (yield* store.list(repo, number)).find((each) => each.id !== run.review.id && each.comment !== undefined)?.comment;
     const rewritten = earlier === undefined ? null : yield* Effect.promise(() => githubRequest(config.apiBase, "PATCH", `repos/${repo}/issues/comments/${earlier.id}`, token, body));
     // A comment that's gone, or that this sign-in may not rewrite, such as one left by whoever was
     // signed in before, is replaced by a new one. GitHub not answering, or not taking the token, is
     // told, not answered with a second comment.
-    const replace = rewritten !== null && (rewritten.kind === "refused" ? rewritten.status === 404 : rewritten.kind === "error" && (rewritten.status === 403 || rewritten.status === 410 || rewritten.status === 422));
+    // GitHub also answers 403 when it's asked too often, which a second comment wouldn't help, so
+    // a 403 counts as "may not rewrite" only when the comment can still be read.
+    const readable = rewritten !== null && rewritten.kind === "error" && rewritten.status === 403 && earlier !== undefined ? (yield* Effect.promise(() => githubRequest(config.apiBase, "GET", `repos/${repo}/issues/comments/${earlier.id}`, token))).kind === "ok" : false;
+    const replace = rewritten !== null && (rewritten.kind === "refused" ? rewritten.status === 404 : rewritten.kind === "error" && (readable || rewritten.status === 410 || rewritten.status === 422));
     const reply = rewritten === null || replace ? yield* Effect.promise(() => githubRequest(config.apiBase, "POST", `repos/${repo}/issues/${number}/comments`, token, body)) : rewritten;
     const posted = reply.kind === "ok" ? decodeComment(reply.body) : Option.none();
     yield* keep(run, Option.isSome(posted) ? { comment: { id: posted.value.id, url: posted.value.html_url } } : { commentProblem: COULD_NOT_POST });
