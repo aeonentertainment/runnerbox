@@ -62,8 +62,12 @@ const STRICTNESS = {
 
 // The fixed prompt, then what the owner asked of every review. The owner's words are theirs, not
 // a pull request author's, so they are not fenced as untrusted.
-export function reviewSystemPrompt(rules: ReviewRules) {
-  const extra = [STRICTNESS[rules.strictness], rules.instructions.trim() === "" ? null : `The owner's own instructions, which take precedence over the defaults above where they conflict:\n${rules.instructions.trim()}`].filter((part) => part !== null);
+export function reviewSystemPrompt(rules: ReviewRules, memory: ReadonlyArray<string> = []) {
+  const extra = [
+    STRICTNESS[rules.strictness],
+    rules.instructions.trim() === "" ? null : `The owner's own instructions, which take precedence over the defaults above where they conflict:\n${rules.instructions.trim()}`,
+    memory.length === 0 ? null : `The rules for this repository, which the owner wrote or kept from findings they said weren't problems. Follow them, and don't report what they say is fine:\n${memory.map((rule) => `  - ${rule.replace(/\s+/g, " ").trim()}`).join("\n")}`,
+  ].filter((part) => part !== null);
   return extra.length === 0 ? REVIEW_SYSTEM_PROMPT : `${REVIEW_SYSTEM_PROMPT}\n\nFrom the owner\n${extra.map((part) => `- ${part}`).join("\n")}`;
 }
 

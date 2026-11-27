@@ -1,7 +1,7 @@
-import { AppearanceSettings } from "./pages/settings/AppearanceSettings.tsx";
 import { createHashHistory, createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 import { AppShell } from "./components/AppShell.tsx";
 import { parseSearch } from "./lib/search.ts";
+import { MemoryPage } from "./pages/MemoryPage.tsx";
 import { NotificationPage } from "./pages/NotificationPage.tsx";
 import { OverviewPage } from "./pages/OverviewPage.tsx";
 import { ReviewInsightsPage } from "./pages/ReviewInsightsPage.tsx";
@@ -10,6 +10,7 @@ import { RunnersPage } from "./pages/RunnersPage.tsx";
 import { RunPage } from "./pages/RunPage.tsx";
 import { RunsPage } from "./pages/RunsPage.tsx";
 import { SettingsPage } from "./pages/SettingsPage.tsx";
+import { AppearanceSettings } from "./pages/settings/AppearanceSettings.tsx";
 import { AboutSettings } from "./pages/settings/AboutSettings.tsx";
 import { AccessSettings } from "./pages/settings/AccessSettings.tsx";
 import { ProvidersSettings } from "./pages/settings/ProvidersSettings.tsx";
@@ -46,6 +47,7 @@ const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/pulls", component: PullRequestsPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/pulls/$owner/$name/$number", component: PullRequestsPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/insights", component: ReviewInsightsPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/memory", component: MemoryPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/speed", component: SpeedPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/runners", component: RunnersPage }),
   settingsRoute.addChildren([

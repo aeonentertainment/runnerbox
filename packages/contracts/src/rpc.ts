@@ -20,7 +20,7 @@ import { Provider, ProviderAccount, SaveProviderAccount } from "./providers.ts";
 import { ApplyWhen, Proposal, ProposalError, ProposalList } from "./proposals.ts";
 import { MonitorError, MonitorSettings, MonitorStatus } from "./monitors.ts";
 import { MoveCiError, MoveCiView, RunnerLabel, RunnerVariable } from "./moveCi.ts";
-import { PullNumber, PullReviews, Review, ReviewError, ReviewInsights, ReviewRules, ReviewsView } from "./reviews.ts";
+import { MemoryRuleText, PullNumber, PullReviews, RepoMemory, Review, ReviewError, ReviewInsights, ReviewRules, ReviewsView } from "./reviews.ts";
 import { ReleaseCheck, ReleaseVersion, ServerUpdateError, UpdateProgress, UpdateStatus } from "./update.ts";
 import { CreateThread, MAX_REFERENCES, MessageText, ThreadReference, ProviderStatus, ReproduceCheck, ReproduceError, ReproduceNetwork, ThreadDetail, ThreadError, ThreadEvent, ThreadSubject, ThreadSummary } from "./threads.ts";
 
@@ -153,6 +153,9 @@ export const RPC_METHODS = {
   reviewsSetModel: "reviews.setModel",
   reviewsSetRules: "reviews.setRules",
   reviewsRead: "reviews.read",
+  reviewsMemory: "reviews.memory",
+  reviewsRemember: "reviews.remember",
+  reviewsForget: "reviews.forget",
   reviewsInsights: "reviews.insights",
   reviewsStart: "reviews.start",
   reviewsStop: "reviews.stop",
@@ -350,6 +353,9 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   Rpc.make(RPC_METHODS.reviewsSetModel, { payload: { model: Schema.String.check(Schema.isMaxLength(60)) }, success: ReviewsView, error: ReviewFailure }),
   Rpc.make(RPC_METHODS.reviewsSetRules, { payload: { rules: ReviewRules }, success: ReviewsView, error: ReviewFailure }),
   // A pull request's reviews as the server keeps them, each saying whether it was posted on the pull request.
+  Rpc.make(RPC_METHODS.reviewsMemory, { success: Schema.Array(RepoMemory), error: ReviewFailure }),
+  Rpc.make(RPC_METHODS.reviewsRemember, { payload: { repo: RepoName, text: MemoryRuleText }, success: Schema.Array(RepoMemory), error: ReviewFailure }),
+  Rpc.make(RPC_METHODS.reviewsForget, { payload: { repo: RepoName, id: Schema.String.check(Schema.isMaxLength(40)) }, success: Schema.Array(RepoMemory), error: ReviewFailure }),
   Rpc.make(RPC_METHODS.reviewsRead, { payload: { repo: RepoName, number: PullNumber }, success: PullReviews, error: ReviewFailure }),
   Rpc.make(RPC_METHODS.reviewsInsights, { payload: { days: Days }, success: ReviewInsights, error: ReviewFailure }),
   // Starts a review of the pull request's newest commit and returns at once; the review fills in as it runs.
@@ -496,6 +502,10 @@ export const RPC_SCOPES = {
   [RPC_METHODS.reviewsSetModel]: ACCESS,
   [RPC_METHODS.reviewsSetRules]: ACCESS,
   [RPC_METHODS.reviewsRead]: HISTORY,
+  [RPC_METHODS.reviewsMemory]: HISTORY,
+  // What every review of a repository is told: the same bar as the other review settings.
+  [RPC_METHODS.reviewsRemember]: ACCESS,
+  [RPC_METHODS.reviewsForget]: ACCESS,
   [RPC_METHODS.reviewsInsights]: HISTORY,
   // A review is an agent turn on the owner's account, so it takes what starting a thread's turn takes.
   [RPC_METHODS.reviewsStart]: THREADS,

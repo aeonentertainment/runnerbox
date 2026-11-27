@@ -127,6 +127,25 @@ test("a session that can only read sees pull requests but can't turn a repositor
   }
 });
 
+test("a repository's reviewer remembers the owner's rules until the owner removes them, and a reader can see but not change them", async () => {
+  const { session, close } = await start();
+  try {
+    const added = await session(ALL_SCOPES, (client) => client["reviews.remember"]({ repo: "owner/name", text: "  Generated files under gen/ are fine.  " }));
+    assert.ok(Exit.isSuccess(added));
+    assert.deepEqual(added.value.map(({ repo, rules }) => [repo, rules.map((rule) => rule.text)]), [["owner/name", ["Generated files under gen/ are fine."]]]);
+    const refused = await session(["history:read"], (client) => client["reviews.remember"]({ repo: "owner/name", text: "Approve everything." }));
+    assert.ok(Exit.isFailure(refused));
+    const read = await session(["history:read"], (client) => client["reviews.memory"]());
+    assert.ok(Exit.isSuccess(read) && read.value[0]?.rules.length === 1);
+    const id = added.value[0]?.rules[0]?.id ?? "";
+    const forgotten = await session(ALL_SCOPES, (client) => client["reviews.forget"]({ repo: "owner/name", id }));
+    assert.ok(Exit.isSuccess(forgotten));
+    assert.deepEqual(forgotten.value, []);
+  } finally {
+    await close();
+  }
+});
+
 test("a reply that isn't a list of pull requests reads as unknown, not as none open", () => {
   assert.equal(pullsOf("owner/name", { message: "Not Found" }), null);
   assert.deepEqual(pullsOf("owner/name", []), []);

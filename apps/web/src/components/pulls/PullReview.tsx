@@ -7,6 +7,7 @@ import { formatAge, formatDuration } from "../../lib/format.ts";
 import { fixPrompt, going, impactWords } from "../../lib/reviewWords.ts";
 import { Button } from "../ui/button.tsx";
 import { FindingBlock } from "./FindingBlock.tsx";
+import { NotAProblem } from "./NotAProblem.tsx";
 import { SectionLabel } from "./SectionLabel.tsx";
 
 type Props = {
@@ -82,7 +83,15 @@ export function PullReview({ pull, environmentId, view, start, stop }: Props) {
         unfinished(review)
       )}
       {behind ? <p className="pt-1 text-warning">The pull request has new commits since this review.</p> : null}
-      {review?.state === "done" ? review.findings.map((finding) => <FindingBlock key={`${finding.path}:${finding.startLine}:${finding.title}`} finding={finding} />) : null}
+      {review?.state === "done"
+        ? review.findings.map((finding) => (
+            <FindingBlock
+              key={`${finding.path}:${finding.startLine}:${finding.title}`}
+              finding={finding}
+              action={view.canConfigure ? <NotAProblem environmentId={environmentId} repo={review.repo} finding={finding} /> : null}
+            />
+          ))
+        : null}
       {error ? <p className="pt-2 text-destructive">{error}</p> : null}
 
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 pt-3">

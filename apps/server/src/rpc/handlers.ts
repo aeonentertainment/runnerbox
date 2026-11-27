@@ -20,6 +20,7 @@ import * as GitHub from "../github/GitHub.ts";
 import * as ReviewBot from "../github/ReviewBot.ts";
 import * as MoveCi from "../moveCi/MoveCi.ts";
 import * as ReviewRuns from "../reviews/ReviewRuns.ts";
+import * as ReviewMemory from "../reviews/ReviewMemory.ts";
 import * as Reviews from "../reviews/Reviews.ts";
 import * as ReviewWatch from "../reviews/ReviewWatch.ts";
 import * as Threads from "../threads/Threads.ts";
@@ -59,6 +60,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
       // The same scopes the server checks on moveCi.setRunner, so the switch is never offered when it would be refused.
       const mayMove = { switch: RPC_SCOPES[RPC_METHODS.moveCiSetRunner].every((scope) => session.scopes.includes(scope)) };
       const reviews = yield* Reviews.Reviews;
+      const memory = yield* ReviewMemory.ReviewMemory;
       const jobLogs = yield* JobLogs.JobLogs;
       const reviewRuns = yield* ReviewRuns.ReviewRuns;
       const reviewWatch = yield* ReviewWatch.ReviewWatch;
@@ -157,6 +159,9 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
         "reviews.setModel": ({ model }) => reviews.setModel(model, mayReview),
         "reviews.setRules": ({ rules }) => reviews.setRules(rules, mayReview),
         "reviews.insights": ({ days }) => reviews.insights(days),
+        "reviews.memory": () => memory.all,
+        "reviews.remember": ({ repo, text }) => memory.remember(repo, text),
+        "reviews.forget": ({ repo, id }) => memory.forget(repo, id),
         "reviews.read": ({ repo, number }) => reviewRuns.read(repo, number, mayReview.review),
         "reviews.start": ({ repo, number }) => reviewRuns.start(repo, number),
         "reviews.stop": ({ repo, number }) => reviewRuns.stop(repo, number),
