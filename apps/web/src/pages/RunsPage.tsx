@@ -8,6 +8,7 @@ import { PageBody } from "../components/PageBody.tsx";
 import { RangeMenu } from "../components/RangeMenu.tsx";
 import { RepoPicker } from "../components/RepoPicker.tsx";
 import { Input } from "../components/ui/input.tsx";
+import { Toggle, ToggleGroup } from "../components/ui/toggle-group.tsx";
 import { useRange } from "../hooks/useRange.ts";
 import { useRepo } from "../hooks/useRepo.ts";
 import { useRuns } from "../hooks/useRuns.ts";
@@ -17,12 +18,27 @@ import { VERDICT_WORDS } from "../lib/vocabulary.ts";
 
 const VERDICT_COLOR = { code: "text-destructive", infra: "text-warning", flaky: "text-warning", unconfirmed: "text-muted-foreground" } as const;
 
+type RunState = "waiting" | "passed" | "failed" | "other";
+const stateOf = (run: JobRun): RunState => {
+  if (run.runner === null && run.conclusion !== "skipped") return "waiting";
+  if (run.conclusion === "success") return "passed";
+  if (run.conclusion === "failure" || run.conclusion === "timed_out") return "failed";
+  return "other";
+};
+const MARK = { waiting: ["○", "text-muted-foreground"], passed: ["✓", "text-success"], failed: ["✕", "text-destructive"], other: ["–", "text-muted-foreground"] } as const;
+
 function Status({ run }: { run: JobRun }) {
-  if (run.runner === null && run.conclusion !== "skipped") return <span className="text-muted-foreground">○</span>;
-  if (run.conclusion === "success") return <span className="text-success">✓</span>;
-  if (run.conclusion === "failure" || run.conclusion === "timed_out") return <span className="text-destructive">✕</span>;
-  return <span className="text-muted-foreground">–</span>;
+  const [mark, tone] = MARK[stateOf(run)];
+  return <span className={tone}>{mark}</span>;
 }
+
+const SHOWN = [
+  ["all", "All"],
+  ["failed", "Failed"],
+  ["passed", "Passed"],
+] as const;
+type Shown = (typeof SHOWN)[number][0];
+const isShown = (value: unknown): value is Shown => SHOWN.some(([shown]) => shown === value);
 
 const th = "py-1.5 pr-4 text-left font-normal text-muted-foreground";
 
@@ -30,10 +46,20 @@ export function RunsPage() {
   const { days } = useRange();
   const { repo, loaded } = useRepo();
   const [filter, setFilter] = useState("");
+  const [shown, setShown] = useState<Shown>("all");
   const navigate = useNavigate();
   const runs = useRuns(repo, days);
   const bar = (
     <PageBar title="Runs">
+      {repo ? (
+        <ToggleGroup aria-label="Which runs" size="sm" value={[shown]} onValueChange={([next]) => isShown(next) && setShown(next)}>
+          {SHOWN.map(([value, label]) => (
+            <Toggle key={value} value={value}>
+              {label}
+            </Toggle>
+          ))}
+        </ToggleGroup>
+      ) : null}
       {repo ? <Input value={filter} onValueChange={setFilter} placeholder="Filter by job, branch or runner" className="w-64 max-sm:hidden" size="sm" /> : null}
       <RepoPicker />
       <RangeMenu />
@@ -50,7 +76,7 @@ export function RunsPage() {
     );
   }
   const needle = filter.trim().toLowerCase();
-  const rows = (runs.data ?? []).filter((run) => !needle || `${jobName(run)} ${run.branch ?? ""} ${run.runnerType}`.toLowerCase().includes(needle));
+  const rows = (runs.data ?? []).filter((run) => (shown === "all" || stateOf(run) === shown) && (!needle || `${jobName(run)} ${run.branch ?? ""} ${run.runnerType}`.toLowerCase().includes(needle)));
   const open = (jobId: number) => void navigate({ to: "/runs/$jobId", params: { jobId: String(jobId) }, search: (previous: RootSearch) => previous });
   return (
     <>
