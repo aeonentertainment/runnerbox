@@ -19,6 +19,7 @@ import * as GitHub from "./github/GitHub.ts";
 import * as GitHubSignIn from "./github/GitHubSignIn.ts";
 import * as ReviewBot from "./github/ReviewBot.ts";
 import * as DailyTotals from "./history/DailyTotals.ts";
+import * as Reruns from "./reruns/Reruns.ts";
 import * as JobLogs from "./jobLogs/JobLogs.ts";
 import * as JobHistory from "./history/JobHistory.ts";
 import * as StateLogs from "./history/StateLogs.ts";
@@ -104,7 +105,7 @@ export const layerCore = (input: ServicesInput) =>
     Layer.provide(LocalEndpoint.layer(input.host)),
     // The inbox counts the open pull requests a failing check blocks, from the reviews' list.
     Layer.provideMerge(Inbox.layer.pipe(Layer.provideMerge(InboxState.layer))),
-    Layer.provideMerge(Layer.mergeAll(JobHistory.layer, DailyTotals.layer, LauncherLogs.layer, RunnersExplained.layer, DailyHealth.layer, CloudLink.layer, RunnerQueue.layer, Layer.mergeAll(Reviews.layer.pipe(Layer.provide(PullChecks.layer)), MoveCi.layer, JobLogs.layer).pipe(Layer.provideMerge(GitHub.layer), Layer.provideMerge(GitHubSignIn.layer)), ReviewBot.layer)),
+    Layer.provideMerge(Layer.mergeAll(JobHistory.layer, DailyTotals.layer, LauncherLogs.layer, RunnersExplained.layer, DailyHealth.layer, CloudLink.layer, RunnerQueue.layer, Layer.mergeAll(Reviews.layer.pipe(Layer.provide(PullChecks.layer)), MoveCi.layer, JobLogs.layer, Reruns.layer).pipe(Layer.provideMerge(GitHub.layer), Layer.provideMerge(GitHubSignIn.layer)), ReviewBot.layer)),
     // Below the inbox, which shows the fix a rule proposed for an item.
     Layer.provideMerge(Proposals.layer.pipe(Layer.provideMerge(UpSocket.layer))),
     Layer.provideMerge(Layer.mergeAll(StateLogs.layer, RunnerState.layer, ReviewStore.layer, ReviewMemory.layer)),

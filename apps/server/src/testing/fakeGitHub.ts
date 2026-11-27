@@ -128,6 +128,7 @@ export async function startFakeGitHub(now: number, code?: { readonly baseSha: st
       });
       return;
     }
+    if (request.method === "POST" && /^\/repos\/owner\/(?:name|other)\/actions\/jobs\/\d+\/rerun$/.test(path)) return void response.writeHead(201, { ...rate, "content-type": "application/json" }).end("{}");
     // Any job's log, by way of a redirect to the stand-in's own storage, as GitHub sends one.
     const logOf = /^\/repos\/owner\/(?:name|other)\/actions\/jobs\/(\d+)\/logs$/.exec(path);
     if (logOf) return void response.writeHead(302, { ...rate, location: `${base()}/storage/logs/${logOf[1]}` }).end();

@@ -22,3 +22,4 @@ export * from "./reviews.ts";
 export * from "./moveCi.ts";
 export * from "./health.ts";
 export * from "./jobLog.ts";
+export * from "./jobRerun.ts";

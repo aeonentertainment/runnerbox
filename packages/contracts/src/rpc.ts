@@ -1,3 +1,4 @@
+import { RerunError } from "./jobRerun.ts";
 import { JobLog, JobLogError } from "./jobLog.ts";
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/rpc/Rpc";
@@ -77,6 +78,7 @@ export const RPC_METHODS = {
   historyWeeklySummary: "history.weeklySummary",
   historyJobResources: "history.jobResources",
   historyJobLog: "history.jobLog",
+  historyRerunJob: "history.rerunJob",
   historyKindUsage: "history.kindUsage",
   historyJobTrends: "history.jobTrends",
   historyDailyTotals: "history.dailyTotals",
@@ -182,6 +184,9 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   // One job attempt's steps, memory and CPU, and a sentence about them. Fails with a
   // StateReadError when the repo's log has no job with that ID.
   // A job's log from GitHub, read through the server's sign-in now; nothing of it is kept.
+  // Asks GitHub to run one job again, through the server's sign-in. It runs on whatever runners
+  // the job's labels pick, as any rerun on GitHub would.
+  Rpc.make(RPC_METHODS.historyRerunJob, { payload: { repo: RepoName, jobId: Schema.Int.check(Schema.isGreaterThan(0)) }, success: Schema.Struct({}), error: Schema.Union([AuthorizationError, RerunError]) }),
   Rpc.make(RPC_METHODS.historyJobLog, { payload: { repo: RepoName, jobId: Schema.Int.check(Schema.isGreaterThan(0)) }, success: JobLog, error: Schema.Union([AuthorizationError, JobLogError]) }),
   Rpc.make(RPC_METHODS.historyJobResources, {
     payload: { repo: RepoName, jobId: Schema.Int },
@@ -401,6 +406,8 @@ export const RPC_SCOPES = {
   // It reads the job's container readings and its runner's events alongside the job.
   [RPC_METHODS.historyJobResources]: ["history:read", "runners:read"],
   [RPC_METHODS.historyJobLog]: HISTORY,
+  // Starts work on the owner's runners and Actions minutes, under their GitHub name.
+  [RPC_METHODS.historyRerunJob]: ACCESS,
   [RPC_METHODS.historyKindUsage]: ["history:read", "runners:read"],
   [RPC_METHODS.historyJobTrends]: HISTORY,
   // Reviews are already read with `history:read` (reviews.read), so their totals take the same
