@@ -1,14 +1,11 @@
-import { isInboxItemHidden } from "@runnerbox/contracts";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { MessageSquareText, Settings } from "lucide-react";
-import { useAtom, useAtomValue } from "@effect/atom-react";
-import { useRange } from "../hooks/useRange.ts";
+import { useAtom } from "@effect/atom-react";
 import { useServerCapabilities } from "../hooks/useServerCapabilities.ts";
-import { needsYouEverywhere } from "../lib/needsYouEverywhere.ts";
+import { useWaitingCount } from "../hooks/useWaitingCount.ts";
 import { isOpen, type Product, PRODUCTS } from "../lib/products.ts";
 import type { RootSearch } from "../lib/search.ts";
 import { chatDockOpenAtom } from "../state/chatDock.ts";
-import { inboxesAtom } from "../state/inbox.ts";
 import { useChatDockAvailable } from "./ChatDock.tsx";
 import { EnvironmentMenu } from "./EnvironmentMenu.tsx";
 import { NotificationsRow } from "./NotificationsRow.tsx";
@@ -47,11 +44,8 @@ function ChatRow() {
 // The rail down the window's left edge, as Linear's or VS Code's: the environment, the two
 // products, then what works on any page. It never widens, so every page keeps the width.
 export function AppSidebar() {
-  const { days } = useRange();
-  const inboxes = useAtomValue(inboxesAtom(days));
   const path = useRouterState({ select: (state) => state.location.pathname });
-  // The count covers every connected machine, not only the one picked in the switcher.
-  const waiting = needsYouEverywhere(inboxes).filter((item) => !isInboxItemHidden(item)).length;
+  const waiting = useWaitingCount();
   const { reviews } = useServerCapabilities();
   const chat = useChatDockAvailable();
   return (

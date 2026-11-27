@@ -26,8 +26,8 @@ export function useChatDockAvailable() {
 
 // A chat docked beside whatever page is open, so a question never needs a trip to another page. A
 // page about one thing, a run or an install's runners, draws that thread in here (ThreadColumn);
-// every other page gets the chat on no subject. Below the sidebar's breakpoint there's no room
-// beside a page, so it covers it.
+// every other page gets the chat on no subject. On a phone there's no room beside a page, so it
+// rises over it as a sheet, and tapping the page above closes it.
 export function ChatDock() {
   const open = useAtomValue(chatDockOpenAtom);
   const pageThreads = useAtomValue(pageThreadsAtom);
@@ -35,12 +35,15 @@ export function ChatDock() {
   const available = useChatDockAvailable();
   if (!open || !available || !environment) return null;
   return (
-    <aside
-      aria-label="Chat"
-      ref={(node) => appAtomRegistry.set(chatDockNodeAtom, node)}
-      className="flex min-h-0 w-full shrink-0 flex-col border-l bg-background max-md:fixed max-md:inset-0 max-md:z-40 md:w-[26rem]"
-    >
-      {pageThreads === 0 ? <Chat key={environment.environmentId} /> : null}
-    </aside>
+    <>
+      <div aria-hidden className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => appAtomRegistry.set(chatDockOpenAtom, false)} />
+      <aside
+        aria-label="Chat"
+        ref={(node) => appAtomRegistry.set(chatDockNodeAtom, node)}
+        className="flex min-h-0 w-full shrink-0 flex-col border-l bg-background max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-50 max-md:h-[85svh] max-md:rounded-t-2xl max-md:border-t max-md:border-l-0 md:w-[26rem]"
+      >
+        {pageThreads === 0 ? <Chat key={environment.environmentId} /> : null}
+      </aside>
+    </>
   );
 }

@@ -12,7 +12,8 @@ export function ProductTabs() {
   const product = PRODUCTS[productOf(path)];
   return (
     <nav aria-label={product.label} className="flex min-w-0 shrink items-center gap-3">
-      <span className="shrink-0 font-semibold text-sm">{product.label}</span>
+      {/* On a phone the bottom bar names the product, and the tabs need the room. */}
+      <span className="shrink-0 font-semibold text-sm max-md:hidden">{product.label}</span>
       <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none]">
         {product.pages.map((page) => {
           const open = isOpen(page.to, path);
