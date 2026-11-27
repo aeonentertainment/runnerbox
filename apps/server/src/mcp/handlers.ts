@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import type { LogReadError } from "../history/StateLogs.ts";
 import * as JobHistory from "../history/JobHistory.ts";
 import * as Inbox from "../inbox/Inbox.ts";
+import * as FlakyTests from "../flaky/FlakyTests.ts";
 import * as JobLogs from "../jobLogs/JobLogs.ts";
 import * as Proposals from "../proposals/Proposals.ts";
 import * as LauncherLogs from "../runners/LauncherLogs.ts";
@@ -41,6 +42,7 @@ export const layer = RunnerboxToolkit.toLayer(
     const proposals = yield* Proposals.Proposals;
     const reviews = yield* Reviews.Reviews;
     const jobLogs = yield* JobLogs.JobLogs;
+    const flaky = yield* FlakyTests.FlakyTests;
     return {
       list_repos: () => history.repos.pipe(toFailure),
       ci_inbox: ({ days }) => inbox.list(days).pipe(toFailure),
@@ -54,6 +56,7 @@ export const layer = RunnerboxToolkit.toLayer(
       machine_samples: ({ days, maxPoints }) => launcher.samples(days, maxPoints).pipe(toFailure),
       runner_state: () => runners.current.pipe(toFailure),
       review_insights: ({ days }) => reviews.insights(days).pipe(Effect.mapError((error) => ({ message: error.message }))),
+      flaky_tests: ({ days }) => flaky.list(days).pipe(toFailure),
       job_log: ({ repo, jobId }) => jobLogs.read(repo, jobId).pipe(Effect.map(forAgent), Effect.mapError((error) => ({ message: error.message }))),
       install_settings: ({ install }) => proposals.settings(install).pipe(Effect.map(({ ok: _ok, ...settings }) => settings), Effect.mapError((error) => ({ message: error.why }))),
     };

@@ -24,3 +24,4 @@ export * from "./health.ts";
 export * from "./jobLog.ts";
 export * from "./jobRerun.ts";
 export * from "./alerts.ts";
+export * from "./flakyTests.ts";
