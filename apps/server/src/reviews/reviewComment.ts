@@ -115,6 +115,17 @@ const detail = (site: string, review: Review, finding: ReviewFinding, withCode: 
   ].join("\n");
 };
 
+// One finding, left on the lines it points at, with the same care as the summary.
+export function findingComment(finding: ReviewFinding) {
+  return [
+    `**${finding.priority}** ${asText(finding.title)}`,
+    "",
+    ...finding.body.split(/\n{2,}/).flatMap((paragraph) => (clean(paragraph) === "" ? [] : [asText(paragraph), ""])),
+    ...(finding.rule === null ? [] : [`Rule it breaks: ${asText(finding.rule)}`, ""]),
+    `<sub>${FOOTER}.</sub>`,
+  ].join("\n");
+}
+
 // `site` is where GitHub's pages are, which only a test changes.
 export function reviewComment(review: Review, site = "https://github.com") {
   const head = [

@@ -35,6 +35,8 @@ async function fakeGitHub(code: ReturnType<typeof makeReviewFixture>) {
   const script = { head: code.headSha, openedAt: "2020-01-01T10:00:00Z", draft: false, commentGone: false };
   // Every comment written to pull request 7, as GitHub would see them: made, or rewritten by its ID.
   const comments: Array<{ readonly wrote: string; readonly body: string }> = [];
+  // Every review left on pull request 7's lines, as sent.
+  const lineReviews: Array<{ readonly commit_id: string; readonly comments: ReadonlyArray<Record<string, unknown>> }> = [];
   const server = createServer((request, response) => {
     const path = request.url ?? "";
     const pull = { number: 7, title: "A job whose runner is gone waits again", state: "open", body: "It stayed assigned.", draft: script.draft, user: { login: "someone" }, head: { ref: "fix/queue-gone-runner", sha: script.head, repo: { full_name: "owner/name" } }, base: { ref: "main", sha: code.baseSha }, additions: 7, deletions: 3, changed_files: 1, created_at: script.openedAt, updated_at: "2020-01-02T10:00:00Z" };
@@ -52,6 +54,15 @@ async function fakeGitHub(code: ReturnType<typeof makeReviewFixture>) {
       });
       return;
     }
+    if (request.method === "POST" && path === "/repos/owner/name/pulls/7/reviews") {
+      let text = "";
+      request.on("data", (chunk) => (text += chunk));
+      request.on("end", () => {
+        lineReviews.push(JSON.parse(text));
+        json(200, { id: 500 + lineReviews.length });
+      });
+      return;
+    }
     if (path.startsWith("/user/installations?")) return json(200, { installations: [{ id: 11, repository_selection: "selected", account: { login: "owner" } }] });
     if (path.startsWith("/user/installations/11/repositories?")) return json(200, { total_count: 1, repositories: [{ full_name: "owner/name" }] });
     if (path.startsWith("/repos/owner/name/pulls?")) return json(200, [pull]);
@@ -61,7 +72,7 @@ async function fakeGitHub(code: ReturnType<typeof makeReviewFixture>) {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
-  return { apiBase: `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`, script, comments, close: () => new Promise((resolve) => server.close(resolve)) };
+  return { apiBase: `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`, script, comments, lineReviews, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
 async function start(steps: ReadonlyArray<FakeStep>) {
@@ -132,7 +143,7 @@ test("a review reads the pull request's commit through its own tools, and what i
   }
 });
 
-test("a finished review is posted on the pull request as one comment, which the next review rewrites, and only where posting is on", async () => {
+test("a finished review is posted on the pull request as one comment, which the next review rewrites, with each finding on its lines once, and only where posting is on", async () => {
   const { github, session, ended, close } = await start(REVIEW_SCRIPT);
   const review = () => session(ALL_SCOPES, (client) => client["reviews.start"]({ repo: "owner/name", number: 7 })).then(ended);
   // A review is done before it's posted, so one that posts is read once it says how that went.
@@ -164,11 +175,17 @@ test("a finished review is posted on the pull request as one comment, which the 
     assert.deepEqual(github.comments.map((comment) => comment.wrote), ["made 900"]);
     assert.match(github.comments[0]?.body ?? "", /^### Fix 1 before merging\n/);
     assert.match(github.comments[0]?.body ?? "", /Posted by RunnerBox\.<\/sub>$/);
+    // The finding is left on the lines it points at, at the reviewed commit.
+    assert.deepEqual(github.lineReviews.map((each) => [each.commit_id, each.comments.map(({ path, start_line, line, side }) => [path, start_line, line, side])]), [[first.headSha, [["src/queue.ts", 8, 10, "RIGHT"]]]]);
+    assert.match(String(github.lineReviews[0]?.comments[0]?.body), /^\*\*P1\*\* A waiting job has no label\n/);
+    assert.equal(first.postedInline?.length, 1);
 
     // The next review rewrites that comment, so the pull request holds one.
     const second = await posted();
     assert.equal(second.comment?.id, 900);
     assert.deepEqual(github.comments.map((comment) => comment.wrote), ["made 900", "rewrote 900"]);
+    // The same finding isn't left on its lines a second time.
+    assert.equal(github.lineReviews.length, 1);
 
     // A comment someone deleted is made again, not counted as a failure.
     github.script.commentGone = true;

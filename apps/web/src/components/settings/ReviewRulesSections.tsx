@@ -73,6 +73,7 @@ export function ReviewRulesSections({ rules, disabled, onChange }: { rules: Revi
             </Select>
           }
         />
+        <SettingsRow title="On the changed lines" description="When a review is posted, each finding is also left on the lines it points at, once per pull request." control={<Switch checked={rules.inline} disabled={disabled} onCheckedChange={(inline) => set({ inline })} aria-label="Leave findings on the changed lines" />} />
         <SettingsRow title="Extra instructions" description="Told to the reviewer on every review.">
           <div className="pb-3">
             <Instructions value={rules.instructions} disabled={disabled} onCommit={(instructions) => set({ instructions })} />
