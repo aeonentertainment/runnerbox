@@ -1,3 +1,4 @@
+import { AppearanceSettings } from "./pages/settings/AppearanceSettings.tsx";
 import { createHashHistory, createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 import { AppShell } from "./components/AppShell.tsx";
 import { parseSearch } from "./lib/search.ts";
@@ -59,6 +60,7 @@ const routeTree = rootRoute.addChildren([
     createRoute({ getParentRoute: () => settingsRoute, path: "/monitors", component: MonitorsSettings }),
     createRoute({ getParentRoute: () => settingsRoute, path: "/reviews", component: ReviewsSettings }),
     createRoute({ getParentRoute: () => settingsRoute, path: "/notifications", component: NotificationsSettings }),
+    createRoute({ getParentRoute: () => settingsRoute, path: "/appearance", component: AppearanceSettings }),
     createRoute({ getParentRoute: () => settingsRoute, path: "/about", component: AboutSettings }),
   ]),
   // Earlier names, so saved links, and links in threads, still land somewhere.

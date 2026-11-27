@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Bell, Eye, GitBranch, GitPullRequest, Info, KeyRound, Plug, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { Bell, Eye, Palette, GitBranch, GitPullRequest, Info, KeyRound, Plug, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { PaletteButton } from "../components/PaletteButton.tsx";
 import { handleSettingsSectionKeyDown } from "../components/settings/settingsSectionNavigation.ts";
 import { SidebarContent, SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../components/ui/sidebar.tsx";
@@ -9,7 +9,13 @@ import type { RootSearch } from "../lib/search.ts";
 // The rail's order, grouped under headings as T3 Code's settings are. A group with no heading is
 // set apart by space alone.
 const GROUPS = [
-  { heading: null, sections: [{ to: "/settings/notifications", label: "Notifications", icon: Bell }] },
+  {
+    heading: null,
+    sections: [
+      { to: "/settings/appearance", label: "Appearance", icon: Palette },
+      { to: "/settings/notifications", label: "Notifications", icon: Bell },
+    ],
+  },
   {
     heading: "CI",
     sections: [

@@ -1,6 +1,7 @@
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { startTheme } from "./hooks/useTheme.ts";
 import { AppAtomRegistryProvider } from "./rpc/atomRegistry.ts";
 import { router } from "./router.tsx";
 import { runtime } from "./runtime.ts";
@@ -8,6 +9,7 @@ import { runtime } from "./runtime.ts";
 import "@fontsource-variable/inter";
 import "./styles.css";
 
+startTheme();
 void runtime.load();
 
 createRoot(document.getElementById("root")!).render(
