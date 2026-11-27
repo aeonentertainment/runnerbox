@@ -1,3 +1,4 @@
+import type { ReviewRules } from "@runnerbox/contracts";
 import type { PullToReview } from "./pullRequests.ts";
 
 // What the reviewer is told. The wording was settled by replaying merged pull requests whose bot
@@ -52,6 +53,19 @@ The review as a whole
 - reach: one sentence saying what the change touches.
 - verdict: one sentence saying what to do before merging, or that it is safe to merge.
 - score: 5 safe to merge with no findings. 4 safe to merge, with P2 fixes worth making. 3 fix a P1 before merging. 2 several P1s or a design that won't hold. 1 should not merge.`;
+
+const STRICTNESS = {
+  low: "The owner asked for more: report P2 findings too when they are narrow, as long as each is real and you can name the case.",
+  medium: null,
+  high: "The owner asked for less: report only P1 findings. Leave every P2 out.",
+} as const;
+
+// The fixed prompt, then what the owner asked of every review. The owner's words are theirs, not
+// a pull request author's, so they are not fenced as untrusted.
+export function reviewSystemPrompt(rules: ReviewRules) {
+  const extra = [STRICTNESS[rules.strictness], rules.instructions.trim() === "" ? null : `The owner's own instructions, which take precedence over the defaults above where they conflict:\n${rules.instructions.trim()}`].filter((part) => part !== null);
+  return extra.length === 0 ? REVIEW_SYSTEM_PROMPT : `${REVIEW_SYSTEM_PROMPT}\n\nFrom the owner\n${extra.map((part) => `- ${part}`).join("\n")}`;
+}
 
 // The one message of a review's turn. The title, description and diff are whatever the pull
 // request's author wrote, so each is in a tag marked untrusted that nothing inside can close.

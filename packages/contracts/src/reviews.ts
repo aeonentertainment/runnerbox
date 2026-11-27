@@ -10,6 +10,31 @@ import { RepoName } from "./history.ts";
 export const ReviewRepo = Schema.Struct({ repo: RepoName, review: Schema.Boolean, post: Schema.optionalKey(Schema.Boolean) });
 export type ReviewRepo = typeof ReviewRepo.Type;
 
+// What the owner tells reviews beyond which repositories: which pull requests are reviewed unasked,
+// which files are left out, how much the reviewer reports, and anything else it should know.
+// Pressing Review ignores the first group. A server older than rules leaves them out of the view.
+const Patterns = Schema.Array(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))).check(Schema.isMaxLength(50));
+export const ReviewStrictness = Schema.Literals(["low", "medium", "high"]);
+export type ReviewStrictness = typeof ReviewStrictness.Type;
+export const ReviewRules = Schema.Struct({
+  onPush: Schema.Boolean,
+  drafts: Schema.Boolean,
+  skipAuthors: Patterns,
+  skipTitles: Patterns,
+  skipLabels: Patterns,
+  ignoreFiles: Patterns,
+  strictness: ReviewStrictness,
+  instructions: Schema.String.check(Schema.isMaxLength(2000)),
+});
+export type ReviewRules = typeof ReviewRules.Type;
+export const DEFAULT_REVIEW_RULES: ReviewRules = { onPush: true, drafts: false, skipAuthors: [], skipTitles: [], skipLabels: [], ignoreFiles: [], strictness: "medium", instructions: "" };
+// A pattern list as clients edit it: one line, comma separated.
+export const patternsText = (patterns: ReadonlyArray<string>) => patterns.join(", ");
+export const patternsFromText = (text: string) => [...new Set(text.split(",").map((part) => part.trim().slice(0, 200)).filter((part) => part !== ""))].slice(0, 50);
+
+export const RuleSkip = Schema.Literals(["author", "title", "label"]);
+export type RuleSkip = typeof RuleSkip.Type;
+
 export const PullNumber = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100_000_000 }));
 
 export const ReviewImpact = Schema.Literals(["low", "medium", "high", "critical"]);
@@ -120,6 +145,8 @@ export const PullRequest = Schema.Struct({
   review: Schema.optionalKey(ReviewSummary),
   // Why it's never reviewed unasked: a draft, a bot's, or from a fork. Pressing Review still works.
   skipped: Schema.optionalKey(Schema.Literals(["draft", "bot", "fork"])),
+  // Skipped by one of the owner's rules. A separate key, so an older client still reads the view.
+  skippedBy: Schema.optionalKey(RuleSkip),
   // Its head commit's checks, from this machine's job history and GitHub. An older server leaves it out.
   checks: Schema.optionalKey(Schema.Array(Check)),
 });
@@ -143,6 +170,7 @@ export const ReviewsView = Schema.Struct({
   models: Schema.optionalKey(Schema.Array(ReviewModel)),
   // True once as many reviews as a day allows have started unasked. Pressing Review still works.
   autoPaused: Schema.optionalKey(Schema.Boolean),
+  rules: Schema.optionalKey(ReviewRules),
 });
 export type ReviewsView = typeof ReviewsView.Type;
 

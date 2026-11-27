@@ -16,6 +16,7 @@ const Pulls = Schema.Array(
     user: Schema.NullOr(Schema.Struct({ login: Schema.String, type: Schema.optionalKey(Schema.String) })),
     head: Schema.Struct({ ref: Schema.String, sha: Schema.String, repo: Schema.optionalKey(Schema.NullOr(Schema.Struct({ full_name: Schema.String }))) }),
     base: Schema.Struct({ ref: Schema.String }),
+    labels: Schema.optionalKey(Schema.Array(Schema.Struct({ name: Schema.String }))),
     created_at: Schema.String,
     updated_at: Schema.String,
   }),
@@ -68,6 +69,7 @@ export function pullsOf(repo: string, body: unknown): ReadonlyArray<ListedPull> 
         // Only a head GitHub names as this repository's own isn't a fork's. One it doesn't name, or
         // names as null once a fork was deleted, is treated as a fork's.
         fork: pull.head.repo?.full_name !== repo,
+        labels: (pull.labels ?? []).map((label) => oneLine(label.name, NAME_CHARS)),
       })),
   });
 }

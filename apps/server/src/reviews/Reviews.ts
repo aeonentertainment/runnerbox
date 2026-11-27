@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type GitHubError, type PullRequest, type Review, ReviewError, type ReviewSummary, type ReviewsView } from "@runnerbox/contracts";
+import { DEFAULT_REVIEW_RULES, type GitHubError, type PullRequest, type Review, ReviewError, ReviewRules, type ReviewSummary, type ReviewsView } from "@runnerbox/contracts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -15,7 +15,7 @@ import * as ServerPaths from "../config/ServerPaths.ts";
 import * as GitHub from "../github/GitHub.ts";
 import { createGitHubReader } from "../github/githubReader.ts";
 import { QueueConfig } from "../runners/QueueConfig.ts";
-import { type ListedPull, skipOf } from "./autoReview.ts";
+import { type ListedPull, ruleSkipOf, skipOf } from "./autoReview.ts";
 import * as PullChecks from "./PullChecks.ts";
 import { pullsOf } from "./pullRequests.ts";
 import { DEFAULT_REVIEW_MODEL, offersReviewModel, REVIEW_MODELS } from "./reviewModels.ts";
@@ -30,7 +30,7 @@ import * as ReviewStore from "./ReviewStore.ts";
 // `since` is when each repository's reviews were turned on, which decides the pull requests reviewed unasked.
 // `post` is the repositories whose reviews are posted on their pull requests. Turning reviews on
 // never adds one: a comment under the owner's name is their own choice, made with its own switch.
-const SettingsFile = Schema.Struct({ v: Schema.Literal(1), repos: Schema.Array(Schema.String), model: Schema.optionalKey(Schema.String), since: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)), post: Schema.optionalKey(Schema.Array(Schema.String)) });
+const SettingsFile = Schema.Struct({ v: Schema.Literal(1), repos: Schema.Array(Schema.String), model: Schema.optionalKey(Schema.String), since: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)), post: Schema.optionalKey(Schema.Array(Schema.String)), rules: Schema.optionalKey(ReviewRules) });
 type SettingsFile = typeof SettingsFile.Type;
 const decodeFile = Schema.decodeUnknownEffect(Schema.fromJsonString(SettingsFile));
 const NONE: SettingsFile = { v: 1, repos: [] };
@@ -54,11 +54,12 @@ export class Reviews extends Context.Service<
     // Whether a repository's finished reviews are posted on their pull requests. Only one with reviews on can be.
     readonly setPost: (repo: string, post: boolean, may: May) => Effect.Effect<ReviewsView, ReviewError>;
     readonly setModel: (model: string, may: May) => Effect.Effect<ReviewsView, ReviewError>;
-    // What a review starts from: the repositories with reviews on, the ones that post, and the model.
-    readonly settings: Effect.Effect<{ readonly repos: ReadonlyArray<string>; readonly post: ReadonlyArray<string>; readonly model: string }, ReviewError>;
+    readonly setRules: (rules: ReviewRules, may: May) => Effect.Effect<ReviewsView, ReviewError>;
+    // What a review starts from: the repositories with reviews on, the ones that post, the model and the owner's rules.
+    readonly settings: Effect.Effect<{ readonly repos: ReadonlyArray<string>; readonly post: ReadonlyArray<string>; readonly model: string; readonly rules: ReviewRules }, ReviewError>;
     // The open pull requests on the repositories with reviews on, asked of GitHub now, and when each
     // repository was turned on. Empty when the server isn't signed in. For the pass that reviews unasked.
-    readonly open: Effect.Effect<{ readonly pulls: ReadonlyArray<ListedPull>; readonly since: Readonly<Record<string, string>> }, ReviewError>;
+    readonly open: Effect.Effect<{ readonly pulls: ReadonlyArray<ListedPull>; readonly since: Readonly<Record<string, string>>; readonly rules: ReviewRules }, ReviewError>;
     // The head commit of each open pull request, by repository with reviews on, from the same look
     // the view uses, without reviews or checks. Null without the sign-in or when the look missed a
     // repository, and a repository whose list may be cut short is left out. For the inbox, which
@@ -97,7 +98,8 @@ const make = Effect.gen(function* () {
   const modelOf = (file: SettingsFile) => (file.model !== undefined && offersReviewModel(file.model) ? file.model : DEFAULT_REVIEW_MODEL);
   // A repository posts only while its reviews are on.
   const postOf = (file: SettingsFile) => (file.post ?? []).filter((repo) => file.repos.includes(repo));
-  const settings = read.pipe(Effect.map((file) => ({ repos: file.repos, post: postOf(file), model: modelOf(file) })));
+  const rulesOf = (file: SettingsFile) => file.rules ?? DEFAULT_REVIEW_RULES;
+  const settings = read.pipe(Effect.map((file) => ({ repos: file.repos, post: postOf(file), model: modelOf(file), rules: rulesOf(file) })));
 
   const summary = (review: Review): ReviewSummary => ({
     id: review.id,
@@ -111,9 +113,15 @@ const make = Effect.gen(function* () {
     p2: review.findings.filter((finding) => finding.priority === "P2").length,
   });
   // A pull request as clients get it: what decides a skip stays here, and only the reason goes out.
-  const shown = ({ bot: _bot, fork: _fork, ...pull }: ListedPull, skipped: ReturnType<typeof skipOf>): PullRequest => (skipped === null ? pull : { ...pull, skipped });
-  const withReview = (listed: ListedPull) => {
-    const pull = shown(listed, skipOf(listed));
+  const shown = (listed: ListedPull, rules: ReviewRules): PullRequest => {
+    const { bot: _bot, fork: _fork, labels: _labels, ...pull } = listed;
+    const skipped = skipOf(listed, rules);
+    if (skipped !== null) return { ...pull, skipped };
+    const skippedBy = ruleSkipOf(listed, rules);
+    return skippedBy === null ? pull : { ...pull, skippedBy };
+  };
+  const withReview = (listed: ListedPull, rules: ReviewRules) => {
+    const pull = shown(listed, rules);
     return store.list(pull.repo, pull.number).pipe(Effect.map(([newest]) => (newest === undefined ? pull : { ...pull, review: summary(newest) })));
   };
 
@@ -143,7 +151,7 @@ const make = Effect.gen(function* () {
   const status = Effect.fn("Reviews.status")(function* (may: May) {
     const reached = yield* reach;
     const file = yield* read;
-    const shared = { canConfigure: may.configure, canReview: may.review, model: modelOf(file), models: REVIEW_MODELS };
+    const shared = { canConfigure: may.configure, canReview: may.review, model: modelOf(file), models: REVIEW_MODELS, rules: rulesOf(file) };
     if (reached === null) return { app: null, repos: [], pulls: [], problem: null, checkedAt: null, ...shared };
     const on = new Set(file.repos);
     const posts = new Set(postOf(file));
@@ -153,7 +161,7 @@ const make = Effect.gen(function* () {
       app: reached.app,
       repos: reached.repos.map((repo) => ({ repo, review: on.has(repo), post: posts.has(repo) })),
       // Each pull request's review is read now, so a running review shows as it changes between looks at GitHub.
-      pulls: yield* Effect.forEach(pulls, (listed) => withReview(listed).pipe(Effect.map((pull) => ({ ...pull, checks: checksOf(pull) })))),
+      pulls: yield* Effect.forEach(pulls, (listed) => withReview(listed, rulesOf(file)).pipe(Effect.map((pull) => ({ ...pull, checks: checksOf(pull) })))),
       problem: reached.problem ?? problem,
       checkedAt: new Date(at).toISOString(),
       ...shared,
@@ -202,9 +210,15 @@ const make = Effect.gen(function* () {
     return yield* status(may);
   });
 
+  const setRules = Effect.fn("Reviews.setRules")(function* (rules: ReviewRules, may: May) {
+    yield* lock.withPermits(1)(read.pipe(Effect.flatMap((file) => write({ ...file, rules }))));
+    yield* bump;
+    return yield* status(may);
+  });
+
   const open = Effect.gen(function* () {
     const reached = yield* reach;
-    if (reached === null) return { pulls: [], since: {} };
+    if (reached === null) return { pulls: [], since: {}, rules: DEFAULT_REVIEW_RULES };
     // A repository turned on before this was kept counts as turned on now, so nothing already open is reviewed unasked.
     const file = yield* lock.withPermits(1)(
       Effect.gen(function* () {
@@ -218,9 +232,9 @@ const make = Effect.gen(function* () {
       }),
     );
     // With no repository on, GitHub isn't asked anything.
-    if (file.repos.length === 0) return { pulls: [], since: {} };
+    if (file.repos.length === 0) return { pulls: [], since: {}, rules: rulesOf(file) };
     const { pulls } = yield* look(reached.repos.filter((repo) => file.repos.includes(repo)), reached.token, true);
-    return { pulls, since: file.since ?? {} };
+    return { pulls, since: file.since ?? {}, rules: rulesOf(file) };
   });
 
   const heads = Effect.gen(function* () {
@@ -235,7 +249,7 @@ const make = Effect.gen(function* () {
     return new Map(listedOn.filter(([, heads]) => heads.length < PULLS_PER_REPO));
   });
 
-  return Reviews.of({ status, setRepo, setPost, setModel, settings, open, heads, changed: SubscriptionRef.changes(changed) });
+  return Reviews.of({ status, setRepo, setPost, setModel, setRules, settings, open, heads, changed: SubscriptionRef.changes(changed) });
 });
 
 export const layer = Layer.effect(Reviews, make);

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { BUILT_IN_ACCOUNT_ID, type PullReviews, type Review, ReviewError } from "@runnerbox/contracts";
+import { BUILT_IN_ACCOUNT_ID, type PullReviews, type Review, ReviewError, type ReviewRules } from "@runnerbox/contracts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -27,7 +27,8 @@ import { pullDiff } from "./pullDiff.ts";
 import { type PullToReview, pullToReview } from "./pullRequests.ts";
 import { reviewableDiff } from "./reviewableDiff.ts";
 import { reviewComment } from "./reviewComment.ts";
-import { REVIEW_SYSTEM_PROMPT, reviewPrompt } from "./reviewPrompt.ts";
+import { matchesAny } from "./pathPatterns.ts";
+import { reviewPrompt, reviewSystemPrompt } from "./reviewPrompt.ts";
 import * as Reviews from "./Reviews.ts";
 import * as ReviewStore from "./ReviewStore.ts";
 
@@ -146,7 +147,7 @@ const make = Effect.gen(function* () {
     );
   };
 
-  const work = (run: Run, pull: PullToReview, account: TurnAccount) =>
+  const work = (run: Run, pull: PullToReview, account: TurnAccount, rules: ReviewRules) =>
     Effect.gen(function* () {
       yield* keep(run, { state: "running" });
       // Asked for now, not when the review was asked for: a review that waited its turn would find an older token expired.
@@ -160,7 +161,7 @@ const make = Effect.gen(function* () {
       const diff = yield* Effect.promise(() => pullDiff(config.apiBase, pull.repo, pull.baseSha, pull.headSha, token));
       if (diff.kind === "too_large") return yield* new ReviewFailed({ why: TOO_LARGE });
       if (diff.kind === "error") return yield* new ReviewFailed({ why: `Couldn't get the diff from GitHub: ${diff.message}.` });
-      const shown = reviewableDiff(diff.diff);
+      const shown = reviewableDiff(diff.diff, matchesAny(rules.ignoreFiles));
       if (shown.changedLines > MAX_CHANGED_LINES || shown.diff.length > MAX_DIFF_CHARS) return yield* new ReviewFailed({ why: TOO_LARGE });
       const grant = yield* Effect.acquireRelease(auth.mintMcpToken("review", { ttlMs: TOKEN_TTL_MS }), ({ session }) => auth.revoke(session.id).pipe(Effect.ignore));
       const reading: Reading = { dir, commit: pull.headSha, opened: new Set(), submitted: null };
@@ -171,7 +172,7 @@ const make = Effect.gen(function* () {
       let costUsd: number | null = null;
       const turn = yield* claude
         .runTurn({
-          systemPrompt: REVIEW_SYSTEM_PROMPT,
+          systemPrompt: reviewSystemPrompt(rules),
           prompt: reviewPrompt(pull, shown.diff),
           images: [],
           mcp: { url: `${yield* endpoint.baseUrl}/mcp`, token: grant.token },
@@ -193,7 +194,9 @@ const make = Effect.gen(function* () {
       // its last call. Only a turn that handed nothing in fails, with its own reason when it has one.
       const submitted = reading.submitted;
       if (submitted === null) return yield* Exit.isFailure(turn) ? Effect.failCause(turn.cause) : new ReviewFailed({ why: "The reviewer ended without handing in a review." });
-      const findings = yield* Effect.forEach(submitted.findings, (finding) => excerpt(reading, finding));
+      // The prompt already asks for P1s only; a P2 the reviewer reports anyway is still left out.
+      const asked = rules.strictness === "high" ? submitted.findings.filter((finding) => finding.priority === "P1") : submitted.findings;
+      const findings = yield* Effect.forEach(asked, (finding) => excerpt(reading, finding));
       yield* keep(run, { state: "done", finishedAt: yield* nowIso, costUsd, filesRead: reading.opened.size, score: submitted.score, impact: submitted.impact, reach: submitted.reach, verdict: submitted.verdict, findings });
       // After the review is kept as done, so a comment that can't be posted doesn't cost the review.
       // Uninterruptible, so a stop or the time limit can't land between GitHub taking the comment
@@ -259,7 +262,7 @@ const make = Effect.gen(function* () {
         const run: Run = { review, stopped: false };
         runs.set(key, run);
         // Forked into the service's scope, so stopping the server interrupts it.
-        run.fiber = yield* store.live(review.id, oneAtATime.withPermits(1)(work(run, pull, { label: account.label, model: settings.model, apiKey: account.apiKey, home: account.home })).pipe(Effect.onExit((exit) => ended(run, exit)))).pipe(Effect.forkIn(scope));
+        run.fiber = yield* store.live(review.id, oneAtATime.withPermits(1)(work(run, pull, { label: account.label, model: settings.model, apiKey: account.apiKey, home: account.home }, settings.rules)).pipe(Effect.onExit((exit) => ended(run, exit)))).pipe(Effect.forkIn(scope));
         return review;
       }),
     );

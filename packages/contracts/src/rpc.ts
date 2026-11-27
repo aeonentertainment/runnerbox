@@ -19,7 +19,7 @@ import { Provider, ProviderAccount, SaveProviderAccount } from "./providers.ts";
 import { ApplyWhen, Proposal, ProposalError, ProposalList } from "./proposals.ts";
 import { MonitorError, MonitorSettings, MonitorStatus } from "./monitors.ts";
 import { MoveCiError, MoveCiView, RunnerLabel, RunnerVariable } from "./moveCi.ts";
-import { PullNumber, PullReviews, Review, ReviewError, ReviewsView } from "./reviews.ts";
+import { PullNumber, PullReviews, Review, ReviewError, ReviewRules, ReviewsView } from "./reviews.ts";
 import { ReleaseCheck, ReleaseVersion, ServerUpdateError, UpdateProgress, UpdateStatus } from "./update.ts";
 import { CreateThread, MAX_REFERENCES, MessageText, ThreadReference, ProviderStatus, ReproduceCheck, ReproduceError, ReproduceNetwork, ThreadDetail, ThreadError, ThreadEvent, ThreadSubject, ThreadSummary } from "./threads.ts";
 
@@ -149,6 +149,7 @@ export const RPC_METHODS = {
   reviewsSetRepo: "reviews.setRepo",
   reviewsSetPost: "reviews.setPost",
   reviewsSetModel: "reviews.setModel",
+  reviewsSetRules: "reviews.setRules",
   reviewsRead: "reviews.read",
   reviewsStart: "reviews.start",
   reviewsStop: "reviews.stop",
@@ -342,6 +343,7 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   // Whether a finished review is posted on its pull request, for a repository with reviews on.
   Rpc.make(RPC_METHODS.reviewsSetPost, { payload: { repo: RepoName, post: Schema.Boolean }, success: ReviewsView, error: ReviewFailure }),
   Rpc.make(RPC_METHODS.reviewsSetModel, { payload: { model: Schema.String.check(Schema.isMaxLength(60)) }, success: ReviewsView, error: ReviewFailure }),
+  Rpc.make(RPC_METHODS.reviewsSetRules, { payload: { rules: ReviewRules }, success: ReviewsView, error: ReviewFailure }),
   // A pull request's reviews as the server keeps them, each saying whether it was posted on the pull request.
   Rpc.make(RPC_METHODS.reviewsRead, { payload: { repo: RepoName, number: PullNumber }, success: PullReviews, error: ReviewFailure }),
   // Starts a review of the pull request's newest commit and returns at once; the review fills in as it runs.
@@ -485,6 +487,7 @@ export const RPC_SCOPES = {
   // Writing on pull requests under the owner's name: the same bar as turning reviews on.
   [RPC_METHODS.reviewsSetPost]: ACCESS,
   [RPC_METHODS.reviewsSetModel]: ACCESS,
+  [RPC_METHODS.reviewsSetRules]: ACCESS,
   [RPC_METHODS.reviewsRead]: HISTORY,
   // A review is an agent turn on the owner's account, so it takes what starting a thread's turn takes.
   [RPC_METHODS.reviewsStart]: THREADS,

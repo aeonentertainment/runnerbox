@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { openSession, pairWithCode } from "@runnerbox/client-runtime";
-import { ALL_SCOPES, type AuthScope, type Review } from "@runnerbox/contracts";
+import { ALL_SCOPES, type AuthScope, DEFAULT_REVIEW_RULES, type Review, type ReviewRules } from "@runnerbox/contracts";
 import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -21,9 +21,10 @@ import { startTestServer } from "../testing/testServer.ts";
 import { autoBudget, type ListedPull, MAX_AUTO_PER_DAY, wantsReview } from "./autoReview.ts";
 import { fetchCommits, listPaths, readLines, searchLines } from "./gitObjects.ts";
 import { pullsOf } from "./pullRequests.ts";
+import { matchesAny } from "./pathPatterns.ts";
 import { reviewableDiff } from "./reviewableDiff.ts";
 import { reviewComment } from "./reviewComment.ts";
-import { reviewPrompt } from "./reviewPrompt.ts";
+import { REVIEW_SYSTEM_PROMPT, reviewPrompt, reviewSystemPrompt } from "./reviewPrompt.ts";
 
 const TIMING = { pollMs: 50, slowMs: 300, maxBackoffMs: 400, idleMs: 200, checkMs: 20 };
 
@@ -283,15 +284,22 @@ test("a pull request opened after reviews were turned on is reviewed unasked, un
   }
 });
 
-test("a bot's pull request, one from a fork, and one still being pushed to aren't reviewed unasked, and a day holds 40", () => {
+test("a bot's pull request, one from a fork, one still being pushed to, and one the owner's rules skip aren't reviewed unasked, and a day holds 40", () => {
   const now = Date.parse("2026-11-15T12:00:00Z");
-  const pull: ListedPull = { repo: "owner/name", number: 7, title: "A change", author: "someone", branch: "b", base: "main", headSha: "a".repeat(40), draft: false, openedAt: "2026-11-15T11:00:00Z", updatedAt: "2026-11-15T11:30:00Z", bot: false, fork: false };
-  const known = { since: "2026-11-15T10:00:00Z", reviews: [], now };
+  const pull: ListedPull = { repo: "owner/name", number: 7, title: "A change", author: "someone", branch: "b", base: "main", headSha: "a".repeat(40), draft: false, openedAt: "2026-11-15T11:00:00Z", updatedAt: "2026-11-15T11:30:00Z", bot: false, fork: false, labels: ["Needs Design"] };
+  const known = { since: "2026-11-15T10:00:00Z", reviews: [], now, rules: DEFAULT_REVIEW_RULES };
   assert.equal(wantsReview(pull, known), true);
   assert.equal(wantsReview({ ...pull, bot: true }, known), false);
   assert.equal(wantsReview({ ...pull, fork: true }, known), false);
   assert.equal(wantsReview({ ...pull, updatedAt: "2026-11-15T11:59:30Z" }, known), false);
   assert.equal(wantsReview(pull, { ...known, since: "2026-11-15T11:30:00Z" }), false);
+
+  const ruled = (rules: Partial<ReviewRules>, changed: Partial<ListedPull> = {}) => wantsReview({ ...pull, ...changed }, { ...known, rules: { ...DEFAULT_REVIEW_RULES, ...rules } });
+  assert.deepEqual([ruled({}, { draft: true }), ruled({ drafts: true }, { draft: true })], [false, true]);
+  assert.deepEqual([ruled({ skipAuthors: ["SomeOne"] }), ruled({ skipTitles: ["a CHANGE"] }), ruled({ skipLabels: ["needs design"] }), ruled({ skipLabels: ["needs"] })], [false, false, false, true]);
+  const earlier: Review = { id: "r0", repo: pull.repo, number: pull.number, title: pull.title, author: pull.author, branch: "b", base: "main", headSha: "b".repeat(40), additions: 1, deletions: 0, changedFiles: 1, state: "done", startedAt: "2026-11-15T10:30:00Z", finishedAt: "2026-11-15T10:31:00Z", model: "opus", costUsd: null, filesRead: 0, score: 5, impact: "low", reach: null, verdict: null, findings: [], problem: null };
+  const reviewed = { ...known, reviews: [earlier] };
+  assert.deepEqual([wantsReview(pull, reviewed), wantsReview(pull, { ...reviewed, rules: { ...DEFAULT_REVIEW_RULES, onPush: false } })], [true, false]);
 
   // Only a head GitHub names as the repository's own isn't a fork's: one left out or null is.
   const listed = (head: object) => pullsOf("owner/name", [{ number: 7, title: "A change", user: { login: "dependabot[bot]" }, head: { ref: "b", sha: "a".repeat(40), ...head }, base: { ref: "main" }, created_at: "2026-11-15T11:00:00Z", updated_at: "2026-11-15T11:30:00Z" }])?.[0];
@@ -442,13 +450,17 @@ test("text in a pull request can't close the tag it's given to the reviewer in",
   assert.equal(prompt.match(/<\/description>/g)?.length, 1);
   assert.equal(prompt.match(/<\/diff>/g)?.length, 1);
   assert.ok(prompt.endsWith("</diff>"));
+  assert.equal(reviewSystemPrompt(DEFAULT_REVIEW_RULES), REVIEW_SYSTEM_PROMPT);
+  assert.ok(reviewSystemPrompt({ ...DEFAULT_REVIEW_RULES, strictness: "high", instructions: "Assume Effect." }).endsWith("- The owner asked for less: report only P1 findings. Leave every P2 out.\n- The owner's own instructions, which take precedence over the defaults above where they conflict:\nAssume Effect."));
 });
 
-test("a lockfile's part of a diff isn't shown to the reviewer or counted, and the rest is", () => {
+test("a lockfile's part of a diff, and one the owner's patterns ignore, isn't shown to the reviewer or counted, and the rest is", () => {
   const file = (path: string, lines: ReadonlyArray<string>) => `diff --git a/${path} b/${path}\nindex 1..2 100644\n--- a/${path}\n+++ b/${path}\n@@ -1,2 +1,2 @@\n${lines.join("\n")}\n`;
   const lock = file("web/pnpm-lock.yaml", Array.from({ length: 5000 }, () => "+  resolution: {}"));
   const shown = reviewableDiff(file("src/a.ts", [" kept", "-old", "+new"]) + lock + file("src/b.ts", ["+++ counted, though it looks like a header's start"]));
   assert.equal(shown.changedLines, 3);
   assert.ok(shown.diff.includes("+new") && shown.diff.includes("src/b.ts") && !shown.diff.includes("resolution"));
   assert.match(shown.diff, /diff --git a\/web\/pnpm-lock\.yaml b\/web\/pnpm-lock\.yaml\n\(a lockfile or generated file, not shown\)/);
+  const ignored = reviewableDiff(file("src/a.ts", ["+new"]) + file("dist/app.js", ["+built"]), matchesAny(["dist/"]));
+  assert.deepEqual([ignored.changedLines, ignored.diff.includes("+built"), ignored.diff.includes("left out by the owner's ignore patterns")], [1, false, true]);
 });
