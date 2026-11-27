@@ -26,7 +26,8 @@ import { type FileLines, fetchCommits, type GitResult, type Listed, listPaths, t
 import { pullDiff } from "./pullDiff.ts";
 import { type PullToReview, pullToReview } from "./pullRequests.ts";
 import { reviewableDiff } from "./reviewableDiff.ts";
-import { reviewComment } from "./reviewComment.ts";
+import { findingComment, reviewComment } from "./reviewComment.ts";
+import { anchorOf, commentableLines } from "./diffLines.ts";
 import { matchesAny } from "./pathPatterns.ts";
 import { reviewPrompt, reviewSystemPrompt } from "./reviewPrompt.ts";
 import * as Reviews from "./Reviews.ts";
@@ -115,13 +116,36 @@ const make = Effect.gen(function* () {
 
   const decodeComment = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.Int, html_url: Schema.String }));
   const COULD_NOT_POST = "This review couldn't be posted on the pull request. The next one tries again.";
+  const COULD_NOT_POST_INLINE = "This review's comments on the changed lines couldn't be posted. The next review tries again.";
+
+  // Leaves each finding on the lines it points at, as one GitHub review, when the diff shows them.
+  // A finding an earlier review of this pull request already left there isn't left again.
+  const postInline = Effect.fn("ReviewRuns.postInline")(function* (run: Run, token: string, lines: ReturnType<typeof commentableLines>) {
+    const { repo, number, headSha, findings } = run.review;
+    const earlier = new Set((yield* store.list(repo, number)).filter((each) => each.id !== run.review.id).flatMap((each) => each.postedInline ?? []));
+    const placed = yield* Effect.try(() =>
+      findings.flatMap((finding) => {
+        const key = `${finding.priority}\n${finding.path}\n${finding.title}`;
+        const anchor = earlier.has(key) ? null : anchorOf(finding, lines.get(finding.path));
+        if (anchor === null) return [];
+        const where = "start_line" in anchor ? { ...anchor, start_side: "RIGHT" } : anchor;
+        return [{ key, comment: { path: finding.path, side: "RIGHT", ...where, body: findingComment(finding) } }];
+      }),
+    );
+    if (placed.length === 0) return {};
+    const count = placed.length === 1 ? "1 finding" : `${placed.length} findings`;
+    const body = { commit_id: headSha, event: "COMMENT", body: `${count} on the changed lines. <sub>Posted by RunnerBox.</sub>`, comments: placed.map(({ comment }) => comment) };
+    const reply = yield* Effect.promise(() => githubRequest(config.apiBase, "POST", `repos/${repo}/pulls/${number}/reviews`, token, body));
+    return reply.kind === "ok" ? { postedInline: placed.map(({ key }) => key) } : { commentProblem: COULD_NOT_POST_INLINE };
+  });
 
   // Leaves the finished review on its pull request as one comment: the comment the pull request's
   // last posted review left is rewritten, so a pull request holds one, and a new one is made when
   // there's none or it was deleted. A review that can't be posted is still done, and says why.
-  const post = Effect.fn("ReviewRuns.post")(function* (run: Run, token: string) {
+  const post = Effect.fn("ReviewRuns.post")(function* (run: Run, token: string, lines: ReturnType<typeof commentableLines>) {
     const { repo, number } = run.review;
-    if (!(yield* reviews.settings).post.includes(repo)) return;
+    const settings = yield* reviews.settings;
+    if (!settings.post.includes(repo)) return;
     // Building the comment is the one step here that runs over the reviewer's own words, so
     // anything it throws is a comment that couldn't be posted, not a review that failed.
     const body = { body: yield* Effect.try(() => reviewComment(run.review)) };
@@ -136,7 +160,11 @@ const make = Effect.gen(function* () {
     const replace = rewritten !== null && (rewritten.kind === "refused" ? rewritten.status === 404 : rewritten.kind === "error" && (readable || rewritten.status === 410 || rewritten.status === 422));
     const reply = rewritten === null || replace ? yield* Effect.promise(() => githubRequest(config.apiBase, "POST", `repos/${repo}/issues/${number}/comments`, token, body)) : rewritten;
     const posted = reply.kind === "ok" ? decodeComment(reply.body) : Option.none();
-    yield* keep(run, Option.isSome(posted) ? { comment: { id: posted.value.id, url: posted.value.html_url } } : { commentProblem: COULD_NOT_POST });
+    if (Option.isNone(posted)) return yield* keep(run, { commentProblem: COULD_NOT_POST });
+    // Only after the summary, which the lines' comments read as part of.
+    const inline = settings.rules.inline ? yield* postInline(run, token, lines).pipe(Effect.orElseSucceed(() => ({ commentProblem: COULD_NOT_POST_INLINE }))) : {};
+    // Kept in one write, so whoever reads the review once it says it was posted sees all of it.
+    yield* keep(run, { comment: { id: posted.value.id, url: posted.value.html_url }, ...inline });
   });
 
   // The lines a finding points at, as the owner will see them. A path or range the agent got wrong leaves it without.
@@ -201,7 +229,7 @@ const make = Effect.gen(function* () {
       // After the review is kept as done, so a comment that can't be posted doesn't cost the review.
       // Uninterruptible, so a stop or the time limit can't land between GitHub taking the comment
       // and its ID being kept, which would leave a second comment for the next review to make.
-      yield* Effect.uninterruptible(post(run, token).pipe(Effect.catch(() => keep(run, { commentProblem: COULD_NOT_POST }).pipe(Effect.ignore))));
+      yield* Effect.uninterruptible(post(run, token, commentableLines(diff.diff)).pipe(Effect.catch(() => keep(run, { commentProblem: COULD_NOT_POST }).pipe(Effect.ignore))));
     }).pipe(Effect.scoped, Effect.timeoutOrElse({ duration: REVIEW_LIMIT, orElse: () => Effect.fail(new ReviewFailed({ why: "The review took longer than 20 minutes and was stopped." })) }));
 
   // However the work ended, the review says so. A stop by the server leaves it to read as cut short.

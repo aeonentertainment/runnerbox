@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { GitHubAppName } from "./github.ts";
 import { RepoName } from "./history.ts";
@@ -25,9 +26,11 @@ export const ReviewRules = Schema.Struct({
   ignoreFiles: Patterns,
   strictness: ReviewStrictness,
   instructions: Schema.String.check(Schema.isMaxLength(2000)),
+  // Rules added later fill in their default, so settings saved before them still read.
+  inline: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(true))),
 });
 export type ReviewRules = typeof ReviewRules.Type;
-export const DEFAULT_REVIEW_RULES: ReviewRules = { onPush: true, drafts: false, skipAuthors: [], skipTitles: [], skipLabels: [], ignoreFiles: [], strictness: "medium", instructions: "" };
+export const DEFAULT_REVIEW_RULES: ReviewRules = { onPush: true, drafts: false, skipAuthors: [], skipTitles: [], skipLabels: [], ignoreFiles: [], strictness: "medium", instructions: "", inline: true };
 // A pattern list as clients edit it: one line, comma separated.
 export const patternsText = (patterns: ReadonlyArray<string>) => patterns.join(", ");
 export const patternsFromText = (text: string) => [...new Set(text.split(",").map((part) => part.trim().slice(0, 200)).filter((part) => part !== ""))].slice(0, 50);
@@ -91,6 +94,9 @@ export const Review = Schema.Struct({
   problem: Schema.NullOr(Schema.String),
   // The comment it was posted as on the pull request, when it was.
   comment: Schema.optionalKey(Schema.Struct({ id: Schema.Int, url: Schema.String })),
+  // The findings it left on their lines, by priority, path and title, so a later review of the
+  // same pull request doesn't leave the same one again.
+  postedInline: Schema.optionalKey(Schema.Array(Schema.String)),
   // Why it couldn't be posted, when posting is on and GitHub didn't take it.
   commentProblem: Schema.optionalKey(Schema.String),
 });
