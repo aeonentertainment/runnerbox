@@ -60,6 +60,12 @@ export const REVIEW_SCRIPT = [
       impact: "medium",
       reach: "Reaches every list of waiting jobs and the new job label.",
       verdict: "Fix the label for a job with no runner before merging.",
+      summary: "A job whose runner has gone is listed as waiting again, so the queue picks it up. Jobs also get a label made from their runner's name.",
+      flow: [
+        { from: "Queue page", to: "Server", says: "list waiting jobs" },
+        { from: "Server", to: "Runner list", says: "which runners are gone" },
+        { from: "Server", to: "Queue page", says: "waiting jobs, with labels" },
+      ],
       findings: [
         {
           priority: "P1",

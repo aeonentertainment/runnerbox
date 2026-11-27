@@ -60,6 +60,10 @@ export const ReviewFinding = Schema.Struct({
 });
 export type ReviewFinding = typeof ReviewFinding.Type;
 
+// One step of how a change flows, from one part of the system to another, as the reviewer read it.
+export const ReviewFlowStep = Schema.Struct({ from: Schema.String, to: Schema.String, says: Schema.String });
+export type ReviewFlowStep = typeof ReviewFlowStep.Type;
+
 // `queued` waits for the review ahead of it. `stopped` is the owner's stop; `failed` says why in `problem`.
 export const ReviewState = Schema.Literals(["queued", "running", "done", "failed", "stopped"]);
 export type ReviewState = typeof ReviewState.Type;
@@ -92,6 +96,10 @@ export const Review = Schema.Struct({
   reach: Schema.NullOr(Schema.String),
   verdict: Schema.NullOr(Schema.String),
   findings: Schema.Array(ReviewFinding),
+  // What the change does, in a few sentences, and how it flows, when the reviewer said. A review
+  // from before these, or one whose change has no flow worth drawing, leaves them out.
+  summary: Schema.optionalKey(Schema.String),
+  flow: Schema.optionalKey(Schema.Array(ReviewFlowStep)),
   problem: Schema.NullOr(Schema.String),
   // The comment it was posted as on the pull request, when it was.
   comment: Schema.optionalKey(Schema.Struct({ id: Schema.Int, url: Schema.String })),

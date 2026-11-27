@@ -1,4 +1,4 @@
-import type { Review, ReviewFinding } from "@runnerbox/contracts";
+import type { Review, ReviewFinding, ReviewFlowStep } from "@runnerbox/contracts";
 
 // The comment a finished review leaves on its pull request, as Markdown. It's posted under the
 // owner's own name, so nothing the reviewer wrote may act there: its words are data from a model
@@ -91,6 +91,25 @@ const linesUrl = (site: string, review: Review, finding: ReviewFinding) => {
   return `${site}/${review.repo}/blob/${review.headSha}/${path}${fragment ? `#${fragment}` : ""}`;
 };
 
+// A part or a message in the diagram, kept to letters, digits, spaces and a little punctuation, so
+// none of it is Mermaid's own syntax and nothing in it can end the block.
+const diagramText = (text: string, max: number) =>
+  [...clean(text).replace(/[^\p{L}\p{N} .,'()/_-]/gu, "").replace(/\s+/g, " ").trim()].slice(0, max).join("") || "?";
+
+// The flow as a sequence diagram GitHub draws. Each part gets an ID of the server's own, and the
+// reviewer's name for it is only its label.
+export function flowDiagram(flow: ReadonlyArray<ReviewFlowStep>) {
+  const parts = [...new Set(flow.flatMap((step) => [diagramText(step.from, 40), diagramText(step.to, 40)]))];
+  const id = (name: string) => `P${parts.indexOf(diagramText(name, 40)) + 1}`;
+  return [
+    "```mermaid",
+    "sequenceDiagram",
+    ...parts.map((name, index) => `  participant P${index + 1} as ${name}`),
+    ...flow.map((step) => `  ${id(step.from)}->>${id(step.to)}: ${diagramText(step.says, 80)}`),
+    "```",
+  ].join("\n");
+}
+
 const headline = (review: Review) => {
   const p1 = review.findings.filter((finding) => finding.priority === "P1").length;
   const p2 = review.findings.length - p1;
@@ -133,6 +152,8 @@ export function reviewComment(review: Review, site = "https://github.com") {
     "",
     [review.score === null ? null : `Confidence ${review.score} of 5`, review.impact === null ? null : `${review.impact} impact`].filter((part) => part !== null).join(" · "),
     "",
+    ...(review.summary ? ["#### What this change does", "", asText(review.summary), ""] : []),
+    ...(review.flow && review.flow.length > 0 ? ["#### How it flows", "", flowDiagram(review.flow), ""] : []),
     ...(review.reach === null ? [] : [asText(review.reach), ""]),
     ...(review.verdict === null ? [] : [asText(review.verdict), ""]),
   ];

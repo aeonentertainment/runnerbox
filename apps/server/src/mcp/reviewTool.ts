@@ -24,11 +24,15 @@ export const SubmittedFinding = Schema.Struct({
   body: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1200)),
   rule: Schema.NullOr(Schema.String.check(Schema.isMaxLength(400))),
 });
+const part = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(40));
+export const SubmittedFlowStep = Schema.Struct({ from: part, to: part, says: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(80)) });
 export const SubmittedReview = Schema.Struct({
   score: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 5 })),
   impact: ReviewImpact,
   reach: sentence,
   verdict: sentence,
+  summary: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(600))),
+  flow: Schema.optionalKey(Schema.Array(SubmittedFlowStep).check(Schema.isMaxLength(8))),
   findings: Schema.Array(SubmittedFinding).check(Schema.isMaxLength(20)),
 });
 export type SubmittedReview = typeof SubmittedReview.Type;

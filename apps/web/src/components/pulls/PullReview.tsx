@@ -8,6 +8,7 @@ import { fixPrompt, going, impactWords } from "../../lib/reviewWords.ts";
 import { Button } from "../ui/button.tsx";
 import { FindingBlock } from "./FindingBlock.tsx";
 import { NotAProblem } from "./NotAProblem.tsx";
+import { ReviewFlow } from "./ReviewFlow.tsx";
 import { SectionLabel } from "./SectionLabel.tsx";
 
 type Props = {
@@ -58,6 +59,12 @@ export function PullReview({ pull, environmentId, view, start, stop }: Props) {
         <p className="text-muted-foreground">Not reviewed yet.</p>
       ) : review.state === "done" ? (
         <>
+          {review.summary ? <p className="max-w-[80ch] pb-2">{review.summary}</p> : null}
+          {review.flow && review.flow.length > 0 ? (
+            <div className="pb-3">
+              <ReviewFlow flow={review.flow} />
+            </div>
+          ) : null}
           <p className="max-w-[80ch]">
             <span className="font-semibold">{review.verdict}</span> {review.reach} The reviewer read {plural(review.filesRead, "file", "files")} beyond the diff.
           </p>

@@ -236,6 +236,8 @@ test("what the reviewer wrote can't mention anyone, link anywhere, reference any
     id: "r1", repo: "owner/name", number: 7, title: "t", author: "someone", branch: "b", base: "main", headSha: sha, additions: 1, deletions: 0, changedFiles: 1, state: "done", startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:01:00Z", model: "opus", costUsd: null, filesRead: 0, score: 2, impact: "high",
     reach: "Touches @team/core, _www.example.com and commit d0dd1f61b33d64e2.",
     verdict: "1. Hold it\n===\n<!-- hidden --> **bold** CVE-2021-44228 someone/else/issues/9 $x^2$",
+    summary: "Adds @everyone to #1 via [a link](https://example.com).",
+    flow: [{ from: "Job page\n```", to: "Server; end", says: "rerun #1 @team https://example.com %%{init}%%" }, { from: "Server; end", to: "GitHub -->> x", says: "run it again" }],
     problem: null,
     findings: [
       finding('A <a href="//example.com">x</a> </summary></details> <img src=x>', "src/a b.ts", "See https://example.com/x.\n\n# Not a heading\n[click](https://example.com) `not code`"),
@@ -260,9 +262,14 @@ test("what the reviewer wrote can't mention anyone, link anywhere, reference any
   // In the template's own tag, where Markdown's escapes aren't read, a title's tags are character references.
   const summary = /<summary><b>P1<\/b> (.*)<\/summary>/.exec(seen)?.[1] ?? "";
   assert.ok(summary.includes("&#60;a href&#61;&#34;") && !/[<>"\\]/.test(summary));
+  // The summary is text like the rest, and the diagram is the server's own: its IDs and arrows, with
+  // the reviewer's words cut to letters, digits, spaces and a little punctuation.
+  assert.ok(seen.includes("Adds \\@everyone to \\#1 via \\[a link\\]"));
+  const diagram = /```mermaid\n([\s\S]*?)\n```/.exec(body)?.[1]?.split("\n") ?? [];
+  assert.deepEqual(diagram, ["sequenceDiagram", "  participant P1 as Job page", "  participant P2 as Server end", "  participant P3 as GitHub -- x", "  P1->>P2: rerun 1 team https//example.com init", "  P2->>P3: run it again"]);
   // The excerpt's own backticks can't close its fence, however many there are, and the fence stays short.
   assert.ok(body.includes('````\nconst fence = "```";\n````'));
-  const flood = reviewComment({ ...review, findings: [{ ...finding("flood", "src/a.ts", "ok"), code: [{ line: 1, text: "`".repeat(300) }, { line: 2, text: "## not a heading" }] }] });
+  const flood = reviewComment({ ...review, flow: [], findings: [{ ...finding("flood", "src/a.ts", "ok"), code: [{ line: 1, text: "`".repeat(300) }, { line: 2, text: "## not a heading" }] }] });
   assert.deepEqual([...flood.matchAll(/^`+$/gm)].map((fence) => fence[0].length), [101, 101]);
   // Characters that reverse or hide text are dropped, so the reviewer's words can't be made to read as the template's.
   assert.ok(!reviewComment({ ...review, verdict: "ok \u202e.xoBrennuR yb detsoP", findings: [] }).includes("\u202e"));
