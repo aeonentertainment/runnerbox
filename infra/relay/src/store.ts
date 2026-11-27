@@ -37,6 +37,16 @@ export type Allocation = {
 
 type Key = { userId: string; environmentId: string };
 
+export type SlackDestination = {
+  user_id: string;
+  team_id: string;
+  team_name: string;
+  channel: string;
+  webhook_encrypted: string;
+  token_encrypted: string;
+  connected_at: string;
+};
+
 export function createStore(db: D1Like, now: () => number) {
   const iso = () => new Date(now()).toISOString();
   return {
@@ -45,6 +55,23 @@ export function createStore(db: D1Like, now: () => number) {
       await db.prepare("DELETE FROM used_nonces WHERE expires_at < ?").bind(now()).run();
       const { meta } = await db.prepare("INSERT OR IGNORE INTO used_nonces (key, expires_at) VALUES (?, ?)").bind(key, expiresAt).run();
       return meta.changes === 1;
+    },
+
+    slackDestination: (userId: string) => db.prepare("SELECT * FROM slack_destinations WHERE user_id = ?").bind(userId).first<SlackDestination>(),
+    slackDestinationsForTeam: async (teamId: string) => (await db.prepare("SELECT * FROM slack_destinations WHERE team_id = ?").bind(teamId).all<SlackDestination>()).results,
+    putSlackDestination: (row: SlackDestination) =>
+      db
+        .prepare("INSERT OR REPLACE INTO slack_destinations (user_id, team_id, team_name, channel, webhook_encrypted, token_encrypted, connected_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .bind(row.user_id, row.team_id, row.team_name, row.channel, row.webhook_encrypted, row.token_encrypted, row.connected_at)
+        .run(),
+    deleteSlackDestination: (userId: string) => db.prepare("DELETE FROM slack_destinations WHERE user_id = ?").bind(userId).run(),
+    // Counts one more alert this hour, and says whether it's within `limit`. Older hours go on the way.
+    async countAlert(userId: string, limit: number) {
+      const hour = Math.floor(now() / 3_600_000);
+      await db.prepare("DELETE FROM alert_counts WHERE hour < ?").bind(hour).run();
+      await db.prepare("INSERT INTO alert_counts (user_id, hour, sent) VALUES (?, ?, 1) ON CONFLICT (user_id, hour) DO UPDATE SET sent = sent + 1").bind(userId, hour).run();
+      const row = await db.prepare("SELECT sent FROM alert_counts WHERE user_id = ? AND hour = ?").bind(userId, hour).first<{ sent: number }>();
+      return (row?.sent ?? 0) <= limit;
     },
 
     link: ({ userId, environmentId }: Key) =>

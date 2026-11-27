@@ -20,7 +20,17 @@ export type Env = {
   TUNNEL_BASE_DOMAIN: string;
   // off (default), dry-run or enabled. See docs/connect-setup.md.
   RELAY_TUNNEL_CLEANUP_MODE?: string;
+  // Alerts to Slack, all four or none. See docs/connect-setup.md.
+  SLACK_CLIENT_ID?: string;
+  SLACK_CLIENT_SECRET?: string;
+  SLACK_SIGNING_SECRET?: string;
+  ALERT_SEALING_KEY?: string;
 };
+
+const slackOf = (env: Env) =>
+  env.SLACK_CLIENT_ID && env.SLACK_CLIENT_SECRET && env.SLACK_SIGNING_SECRET && env.ALERT_SEALING_KEY
+    ? { clientId: env.SLACK_CLIENT_ID, clientSecret: env.SLACK_CLIENT_SECRET, signingSecret: env.SLACK_SIGNING_SECRET, sealingKey: env.ALERT_SEALING_KEY }
+    : undefined;
 
 // Wrangler stores PEM secrets with escaped newlines.
 const pem = (value: string) => value.replace(/\\n/g, "\n");
@@ -41,6 +51,7 @@ function relayFor(env: Env) {
         requireHttps: true,
         cleanupMode: cleanupMode(env.RELAY_TUNNEL_CLEANUP_MODE),
       },
+      slack: slackOf(env),
       store: createStore(env.DB, now),
       identity: clerkIdentity({ frontendApi: env.CLERK_FRONTEND_API, clientIds: [env.CLERK_CLI_CLIENT_ID, env.CLERK_DESKTOP_CLIENT_ID] }),
       tunnels: cloudflareTunnels({ accountId: env.CLOUDFLARE_ACCOUNT_ID, zoneId: env.CLOUDFLARE_ZONE_ID, apiToken: env.CLOUDFLARE_API_TOKEN }),

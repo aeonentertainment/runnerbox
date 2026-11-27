@@ -28,5 +28,9 @@ TUNNEL_BASE_DOMAIN = "example.com"
 # off, dry-run or enabled. Read at deploy time, so changing it means deploying again.
 RELAY_TUNNEL_CLEANUP_MODE = "off"
 
+# Alerts to Slack, optional. Set the client ID here and the three secrets below, or none of them.
+# SLACK_CLIENT_ID = "replace-with-slack-client-id"
+
 # Secrets, set with `wrangler secret put`, never in this file:
 #   RELAY_SIGNING_PRIVATE_KEY, RELAY_SIGNING_PUBLIC_KEY, CLOUDFLARE_API_TOKEN
+#   For Slack: SLACK_CLIENT_SECRET, SLACK_SIGNING_SECRET, ALERT_SEALING_KEY
