@@ -71,9 +71,11 @@ export function PullReview({ pull, environmentId, view, start, stop }: Props) {
               <a href={review.comment.url} target="_blank" rel="noreferrer noopener" className="text-foreground underline-offset-4 hover:underline">
                 posted on the pull request
               </a>
-            ) : (
-              <span>{review.commentProblem ?? "held here, not posted"}</span>
-            )}
+            ) : review.commentProblem === undefined ? (
+              <span>held here, not posted</span>
+            ) : null}
+            {review.commentProblem ? <span className="text-warning">{review.commentProblem}</span> : null}
+            {review.statusProblem ? <span className="text-warning">{review.statusProblem}</span> : null}
           </p>
         </>
       ) : (

@@ -74,6 +74,7 @@ export function ReviewRulesSections({ rules, disabled, onChange }: { rules: Revi
           }
         />
         <SettingsRow title="On the changed lines" description="When a review is posted, each finding is also left on the lines it points at, once per pull request." control={<Switch checked={rules.inline} disabled={disabled} onCheckedChange={(inline) => set({ inline })} aria-label="Leave findings on the changed lines" />} />
+        <SettingsRow title="Status check" description="When a review is posted, its commit gets a RunnerBox review check: pending while it runs, failing while there's something to fix before merging. Needs the App's Commit statuses permission." control={<Switch checked={rules.status} disabled={disabled} onCheckedChange={(status) => set({ status })} aria-label="Set a status check on the commit" />} />
         <SettingsRow title="Extra instructions" description="Told to the reviewer on every review.">
           <div className="pb-3">
             <Instructions value={rules.instructions} disabled={disabled} onCommit={(instructions) => set({ instructions })} />

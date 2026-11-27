@@ -32,11 +32,13 @@ const TIMING = { pollMs: 50, slowMs: 300, maxBackoffMs: 400, idleMs: 200, checkM
 // fixture's branch. `script` changes the pull request between requests: its head commit, when it
 // was opened, and whether it's a draft. It answers only the signed-in user's token.
 async function fakeGitHub(code: ReturnType<typeof makeReviewFixture>) {
-  const script = { head: code.headSha, openedAt: "2020-01-01T10:00:00Z", draft: false, commentGone: false };
+  const script = { head: code.headSha, openedAt: "2020-01-01T10:00:00Z", draft: false, commentGone: false, statusRefused: false };
   // Every comment written to pull request 7, as GitHub would see them: made, or rewritten by its ID.
   const comments: Array<{ readonly wrote: string; readonly body: string }> = [];
   // Every review left on pull request 7's lines, as sent.
   const lineReviews: Array<{ readonly commit_id: string; readonly comments: ReadonlyArray<Record<string, unknown>> }> = [];
+  // Every status set on a commit, as sent.
+  const statuses: Array<{ readonly sha: string; readonly state: string; readonly context: string; readonly description: string; readonly target_url?: string }> = [];
   const server = createServer((request, response) => {
     const path = request.url ?? "";
     const pull = { number: 7, title: "A job whose runner is gone waits again", state: "open", body: "It stayed assigned.", draft: script.draft, user: { login: "someone" }, head: { ref: "fix/queue-gone-runner", sha: script.head, repo: { full_name: "owner/name" } }, base: { ref: "main", sha: code.baseSha }, additions: 7, deletions: 3, changed_files: 1, created_at: script.openedAt, updated_at: "2020-01-02T10:00:00Z" };
@@ -51,6 +53,17 @@ async function fakeGitHub(code: ReturnType<typeof makeReviewFixture>) {
         const id = rewrites ? Number(rewrites[1]) : 900 + comments.length;
         comments.push({ wrote: rewrites ? `rewrote ${id}` : `made ${id}`, body: (JSON.parse(text) as { body: string }).body });
         json(rewrites ? 200 : 201, { id, html_url: `https://github.com/owner/name/pull/7#issuecomment-${id}` });
+      });
+      return;
+    }
+    const status = /^\/repos\/owner\/name\/statuses\/([0-9a-f]{40})$/.exec(path);
+    if (request.method === "POST" && status) {
+      let text = "";
+      request.on("data", (chunk) => (text += chunk));
+      request.on("end", () => {
+        if (script.statusRefused) return json(403, {});
+        statuses.push({ sha: status[1] ?? "", ...JSON.parse(text) });
+        json(201, {});
       });
       return;
     }
@@ -72,7 +85,7 @@ async function fakeGitHub(code: ReturnType<typeof makeReviewFixture>) {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
-  return { apiBase: `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`, script, comments, lineReviews, close: () => new Promise((resolve) => server.close(resolve)) };
+  return { apiBase: `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`, script, comments, lineReviews, statuses, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
 async function start(steps: ReadonlyArray<FakeStep>) {
@@ -143,7 +156,7 @@ test("a review reads the pull request's commit through its own tools, and what i
   }
 });
 
-test("a finished review is posted on the pull request as one comment, which the next review rewrites, with each finding on its lines once, and only where posting is on", async () => {
+test("a finished review is posted on the pull request as one comment, which the next review rewrites, with each finding on its lines once and a status check on the commit, and only where posting is on", async () => {
   const { github, session, ended, close } = await start(REVIEW_SCRIPT);
   const review = () => session(ALL_SCOPES, (client) => client["reviews.start"]({ repo: "owner/name", number: 7 })).then(ended);
   // A review is done before it's posted, so one that posts is read once it says how that went.
@@ -166,7 +179,7 @@ test("a finished review is posted on the pull request as one comment, which the 
     assert.deepEqual(status.value.repos, [{ repo: "owner/name", review: true, post: false }]);
     const unposted = await review();
     await settle();
-    assert.deepEqual([unposted.state, unposted.comment, github.comments.length], ["done", undefined, 0]);
+    assert.deepEqual([unposted.state, unposted.comment, github.comments.length, github.statuses.length], ["done", undefined, 0, 0]);
     const on = await session(ALL_SCOPES, (client) => client["reviews.setPost"]({ repo: "owner/name", post: true }));
     assert.ok(Exit.isSuccess(on) && on.value.repos[0]?.post === true);
 
@@ -179,6 +192,9 @@ test("a finished review is posted on the pull request as one comment, which the 
     assert.deepEqual(github.lineReviews.map((each) => [each.commit_id, each.comments.map(({ path, start_line, line, side }) => [path, start_line, line, side])]), [[first.headSha, [["src/queue.ts", 8, 10, "RIGHT"]]]]);
     assert.match(String(github.lineReviews[0]?.comments[0]?.body), /^\*\*P1\*\* A waiting job has no label\n/);
     assert.equal(first.postedInline?.length, 1);
+    // The commit's check went pending while it was reviewed, then failing for the P1, linking to the comment.
+    assert.deepEqual(github.statuses.map(({ sha, state, context, target_url }) => [sha, state, context, target_url]), [[first.headSha, "pending", "RunnerBox review", undefined], [first.headSha, "failure", "RunnerBox review", first.comment?.url]]);
+    assert.match(github.statuses[1]?.description ?? "", /^Fix 1 before merging, confidence \d of 5$/);
 
     // The next review rewrites that comment, so the pull request holds one.
     const second = await posted();
@@ -187,10 +203,11 @@ test("a finished review is posted on the pull request as one comment, which the 
     // The same finding isn't left on its lines a second time.
     assert.equal(github.lineReviews.length, 1);
 
-    // A comment someone deleted is made again, not counted as a failure.
+    // A comment someone deleted is made again, not counted as a failure. A check the App may not set says so.
     github.script.commentGone = true;
+    github.script.statusRefused = true;
     const third = await posted();
-    assert.deepEqual([third.comment?.id, third.commentProblem], [902, undefined]);
+    assert.deepEqual([third.comment?.id, third.commentProblem, third.statusProblem], [902, undefined, "GitHub didn't take the status check. The GitHub App needs Commit statuses: Read and write."]);
 
     // Turning reviews off and on again leaves posting off, so nothing is written unasked.
     await session(ALL_SCOPES, (client) => client["reviews.setRepo"]({ repo: "owner/name", review: false }));

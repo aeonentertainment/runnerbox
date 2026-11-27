@@ -57,7 +57,9 @@ export type ToolRefused = { readonly message: string };
 
 // What a review's turn may read, and what it handed in.
 type Reading = { readonly dir: string; readonly commit: string; readonly opened: Set<string>; submitted: SubmittedReview | null };
-type Run = { review: Review; stopped: boolean; fiber?: Fiber.Fiber<void, unknown> };
+// `checked` holds the token a pending status check was set with, so however the review ends its
+// check is settled and never left pending on the commit.
+type Run = { review: Review; stopped: boolean; fiber?: Fiber.Fiber<void, unknown>; checked: string | null };
 
 export class ReviewRuns extends Context.Service<
   ReviewRuns,
@@ -116,6 +118,25 @@ const make = Effect.gen(function* () {
 
   const decodeComment = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.Int, html_url: Schema.String }));
   const COULD_NOT_POST = "This review couldn't be posted on the pull request. The next one tries again.";
+  // The status check a review sets on the commit it reviewed, which a branch rule can require.
+  const STATUS_CONTEXT = "RunnerBox review";
+  const STATUS_REFUSED = "GitHub didn't take the status check. The GitHub App needs Commit statuses: Read and write.";
+  const setStatus = (review: Review, token: string, state: "pending" | "success" | "failure" | "error", description: string) =>
+    Effect.promise(() =>
+      githubRequest(config.apiBase, "POST", `repos/${review.repo}/statuses/${review.headSha}`, token, {
+        state,
+        context: STATUS_CONTEXT,
+        description: description.slice(0, 140),
+        ...(review.comment ? { target_url: review.comment.url } : {}),
+      }),
+    );
+  // What the finished review's check says: failing while there's a P1 to fix.
+  const settleStatus = (review: Review, token: string) => {
+    const p1 = review.findings.filter((finding) => finding.priority === "P1").length;
+    const confidence = review.score === null ? "" : `, confidence ${review.score} of 5`;
+    return setStatus(review, token, p1 > 0 ? "failure" : "success", `${p1 > 0 ? `Fix ${p1} before merging` : "Nothing to fix before merging"}${confidence}`);
+  };
+
   const COULD_NOT_POST_INLINE = "This review's comments on the changed lines couldn't be posted. The next review tries again.";
 
   // Leaves each finding on the lines it points at, as one GitHub review, when the diff shows them.
@@ -142,10 +163,8 @@ const make = Effect.gen(function* () {
   // Leaves the finished review on its pull request as one comment: the comment the pull request's
   // last posted review left is rewritten, so a pull request holds one, and a new one is made when
   // there's none or it was deleted. A review that can't be posted is still done, and says why.
-  const post = Effect.fn("ReviewRuns.post")(function* (run: Run, token: string, lines: ReturnType<typeof commentableLines>) {
+  const postComments = Effect.fn("ReviewRuns.postComments")(function* (run: Run, token: string, lines: ReturnType<typeof commentableLines>, rules: ReviewRules) {
     const { repo, number } = run.review;
-    const settings = yield* reviews.settings;
-    if (!settings.post.includes(repo)) return;
     // Building the comment is the one step here that runs over the reviewer's own words, so
     // anything it throws is a comment that couldn't be posted, not a review that failed.
     const body = { body: yield* Effect.try(() => reviewComment(run.review)) };
@@ -160,11 +179,21 @@ const make = Effect.gen(function* () {
     const replace = rewritten !== null && (rewritten.kind === "refused" ? rewritten.status === 404 : rewritten.kind === "error" && (readable || rewritten.status === 410 || rewritten.status === 422));
     const reply = rewritten === null || replace ? yield* Effect.promise(() => githubRequest(config.apiBase, "POST", `repos/${repo}/issues/${number}/comments`, token, body)) : rewritten;
     const posted = reply.kind === "ok" ? decodeComment(reply.body) : Option.none();
-    if (Option.isNone(posted)) return yield* keep(run, { commentProblem: COULD_NOT_POST });
+    if (Option.isNone(posted)) return { commentProblem: COULD_NOT_POST };
     // Only after the summary, which the lines' comments read as part of.
-    const inline = settings.rules.inline ? yield* postInline(run, token, lines).pipe(Effect.orElseSucceed(() => ({ commentProblem: COULD_NOT_POST_INLINE }))) : {};
-    // Kept in one write, so whoever reads the review once it says it was posted sees all of it.
-    yield* keep(run, { comment: { id: posted.value.id, url: posted.value.html_url }, ...inline });
+    const inline = rules.inline ? yield* postInline(run, token, lines).pipe(Effect.orElseSucceed(() => ({ commentProblem: COULD_NOT_POST_INLINE }))) : {};
+    return { comment: { id: posted.value.id, url: posted.value.html_url }, ...inline };
+  });
+
+  // The comments, where posting is on, then the status check, which links to the summary. Kept in
+  // one write, so whoever reads the review once it says it was posted sees all of it.
+  const post = Effect.fn("ReviewRuns.post")(function* (run: Run, token: string, lines: ReturnType<typeof commentableLines>) {
+    const settings = yield* reviews.settings;
+    const posted: Partial<Review> = settings.post.includes(run.review.repo) ? yield* postComments(run, token, lines, settings.rules).pipe(Effect.orElseSucceed(() => ({ commentProblem: COULD_NOT_POST }))) : {};
+    const checked = run.checked;
+    const settled = checked === null ? null : yield* settleStatus({ ...run.review, ...posted }, checked);
+    run.checked = null;
+    yield* keep(run, { ...posted, ...(settled !== null && settled.kind !== "ok" ? { statusProblem: STATUS_REFUSED } : {}) });
   });
 
   // The lines a finding points at, as the owner will see them. A path or range the agent got wrong leaves it without.
@@ -183,6 +212,12 @@ const make = Effect.gen(function* () {
       if (reached === null) return yield* new ReviewError({ reason: "not_connected" });
       if (!reached.repos.includes(pull.repo)) return yield* new ReviewError({ reason: reached.problem === null ? "unknown_repo" : "github_unreachable" });
       const { token } = reached;
+      const posting = yield* reviews.settings;
+      if (posting.post.includes(pull.repo) && posting.rules.status) {
+        const pending = yield* setStatus(run.review, token, "pending", "Reviewing");
+        if (pending.kind === "ok") run.checked = token;
+        else yield* keep(run, { statusProblem: STATUS_REFUSED });
+      }
       const dir = codeDir(pull.repo);
       // Stopping the review ends git too, so it never outlives the review holding the repository's locks or the token.
       yield* Effect.promise((signal) => fetchCommits(dir, `${gitBase}/${pull.repo}.git`, token, [pull.headSha], signal)).pipe(Effect.flatMap(gitFailure));
@@ -236,6 +271,8 @@ const make = Effect.gen(function* () {
   const ended = (run: Run, exit: Exit.Exit<void, ReviewFailed | ReviewError | { readonly message: string }>) =>
     Effect.gen(function* () {
       runs.delete(keyOf(run.review.repo, run.review.number));
+      // A check set pending is never left that way, which a required check would turn into a merge nobody can make.
+      if (run.checked !== null) yield* setStatus(run.review, run.checked, "error", Exit.isSuccess(exit) ? "The review ended without a result" : "The review didn't finish");
       if (Exit.isSuccess(exit)) return;
       const finishedAt = yield* nowIso;
       if (Cause.hasInterruptsOnly(exit.cause)) return run.stopped ? yield* keep(run, { state: "stopped", finishedAt }) : undefined;
@@ -287,7 +324,7 @@ const make = Effect.gen(function* () {
           problem: null,
         };
         yield* store.put(review);
-        const run: Run = { review, stopped: false };
+        const run: Run = { review, stopped: false, checked: null };
         runs.set(key, run);
         // Forked into the service's scope, so stopping the server interrupts it.
         run.fiber = yield* store.live(review.id, oneAtATime.withPermits(1)(work(run, pull, { label: account.label, model: settings.model, apiKey: account.apiKey, home: account.home }, settings.rules)).pipe(Effect.onExit((exit) => ended(run, exit)))).pipe(Effect.forkIn(scope));
