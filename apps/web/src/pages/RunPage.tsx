@@ -1,5 +1,6 @@
 import { useParams } from "@tanstack/react-router";
 import { JobLogView } from "../components/job/JobLogView.tsx";
+import { RerunButton } from "../components/job/RerunButton.tsx";
 import { JobResourcesView } from "../components/job/JobResourcesView.tsx";
 import { PageBar } from "../components/PageBar.tsx";
 import { RangeMenu } from "../components/RangeMenu.tsx";
@@ -24,7 +25,7 @@ export function RunPage() {
   const runs = useRuns(repo, days);
   const run = runs.data?.find((candidate) => String(candidate.jobId) === jobId);
   const resources = useJobResources(run);
-  const { jobResources, jobLog } = useServerCapabilities();
+  const { jobResources, jobLog, rerun } = useServerCapabilities();
   const environmentId = useActiveEnvironment().environment?.environmentId ?? "";
   // Everything under What happened waits for the readings, so the page arrives whole and a finding
   // never replaces the verdict's words after it has drawn.
@@ -33,6 +34,7 @@ export function RunPage() {
   const finding = resources.data?.sentence?.advice ? { why: resources.data.sentence.text, action: resources.data.sentence.advice } : null;
   const bar = (
     <PageBar title={run ? `${jobName(run)} #${run.runId}` : "Run"} trail={["Runs"]}>
+      {run && rerun ? <RerunButton key={run.jobId} environmentId={environmentId} repo={run.repo} jobId={run.jobId} /> : null}
       <RangeMenu />
     </PageBar>
   );
