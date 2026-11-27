@@ -53,9 +53,11 @@ export type Capabilities = {
   readonly reviewInsights: boolean;
   // `history.jobLog`: a job's log, read from GitHub on request.
   readonly jobLog: boolean;
+  // `reviews.memory`: each repository's rules for its reviewer.
+  readonly reviewMemory: boolean;
 };
 
-export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false, reviewPosting: false, reviewRules: false, reviewInsights: false, jobLog: false };
+export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false, reviewPosting: false, reviewRules: false, reviewInsights: false, jobLog: false, reviewMemory: false };
 
 export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilities {
   if (methods === null) return NO_CAPABILITIES;
@@ -88,5 +90,6 @@ export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilit
     reviewRules: has(RPC_METHODS.reviewsSetRules),
     reviewInsights: has(RPC_METHODS.reviewsInsights),
     jobLog: has(RPC_METHODS.historyJobLog),
+    reviewMemory: has(RPC_METHODS.reviewsMemory),
   };
 }

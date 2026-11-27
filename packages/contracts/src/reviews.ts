@@ -208,8 +208,17 @@ export const ReviewInsights = Schema.Struct({
 });
 export type ReviewInsights = typeof ReviewInsights.Type;
 
+// What the reviewer of a repository always keeps in mind: rules the owner wrote, or kept from a
+// finding they said wasn't a problem. They're the owner's words, told to every review of it.
+export const MemoryRuleText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(500));
+export const MemoryRule = Schema.Struct({ id: Schema.String.check(Schema.isMaxLength(40)), text: MemoryRuleText, addedAt: Schema.String });
+export type MemoryRule = typeof MemoryRule.Type;
+export const RepoMemory = Schema.Struct({ repo: RepoName, rules: Schema.Array(MemoryRule) });
+export type RepoMemory = typeof RepoMemory.Type;
+export const MAX_MEMORY_RULES = 100;
+
 export class ReviewError extends Schema.TaggedError<ReviewError>()("ReviewError", {
-  reason: Schema.Literals(["unreadable", "github_unreachable", "not_connected", "unknown_repo", "reviews_off", "pull_not_found", "review_running", "no_review", "provider_unavailable", "model_not_offered"]),
+  reason: Schema.Literals(["unreadable", "github_unreachable", "not_connected", "unknown_repo", "reviews_off", "pull_not_found", "review_running", "no_review", "provider_unavailable", "model_not_offered", "memory_full"]),
 }) {
   override get message() {
     switch (this.reason) {
@@ -233,6 +242,8 @@ export class ReviewError extends Schema.TaggedError<ReviewError>()("ReviewError"
         return "Claude Code isn't ready on the server's machine. Check Settings, Providers.";
       case "model_not_offered":
         return "Reviews can't run on that model.";
+      case "memory_full":
+        return "That repository already has as many rules as it can keep. Remove one first.";
     }
   }
 }

@@ -485,6 +485,7 @@ test("text in a pull request can't close the tag it's given to the reviewer in",
   assert.equal(prompt.match(/<\/diff>/g)?.length, 1);
   assert.ok(prompt.endsWith("</diff>"));
   assert.equal(reviewSystemPrompt(DEFAULT_REVIEW_RULES), REVIEW_SYSTEM_PROMPT);
+  assert.ok(reviewSystemPrompt(DEFAULT_REVIEW_RULES, ["Generated files\nare fine."]).endsWith("don't report what they say is fine:\n  - Generated files are fine."));
   assert.ok(reviewSystemPrompt({ ...DEFAULT_REVIEW_RULES, strictness: "high", instructions: "Assume Effect." }).endsWith("- The owner asked for less: report only P1 findings. Leave every P2 out.\n- The owner's own instructions, which take precedence over the defaults above where they conflict:\nAssume Effect."));
 });
 

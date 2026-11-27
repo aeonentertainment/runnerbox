@@ -31,6 +31,7 @@ import { anchorOf, commentableLines } from "./diffLines.ts";
 import { matchesAny } from "./pathPatterns.ts";
 import { reviewPrompt, reviewSystemPrompt } from "./reviewPrompt.ts";
 import * as Reviews from "./Reviews.ts";
+import * as ReviewMemory from "./ReviewMemory.ts";
 import * as ReviewStore from "./ReviewStore.ts";
 
 // Runs a review: fetches the pull request's head commit into a bare repository on this machine,
@@ -87,6 +88,7 @@ const make = Effect.gen(function* () {
   const reach = github.reach.pipe(Effect.mapError(Reviews.withoutGitHub));
   const reviews = yield* Reviews.Reviews;
   const store = yield* ReviewStore.ReviewStore;
+  const memory = yield* ReviewMemory.ReviewMemory;
   const accounts = yield* AccountStore.AccountStore;
   const auth = yield* AuthStore.AuthStore;
   const endpoint = yield* LocalEndpoint.LocalEndpoint;
@@ -235,7 +237,7 @@ const make = Effect.gen(function* () {
       let costUsd: number | null = null;
       const turn = yield* claude
         .runTurn({
-          systemPrompt: reviewSystemPrompt(rules),
+          systemPrompt: reviewSystemPrompt(rules, yield* memory.rulesOf(pull.repo)),
           prompt: reviewPrompt(pull, shown.diff),
           images: [],
           mcp: { url: `${yield* endpoint.baseUrl}/mcp`, token: grant.token },

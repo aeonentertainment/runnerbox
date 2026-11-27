@@ -1,6 +1,6 @@
 import { inboxItems } from "@runnerbox/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { ChartColumn, CircleDot, FileText, Gauge, GitPullRequest, LayoutDashboard, ListTree, Moon, Server, Settings } from "lucide-react";
+import { BookMarked, ChartColumn, CircleDot, FileText, Gauge, GitPullRequest, LayoutDashboard, ListTree, Moon, Server, Settings } from "lucide-react";
 import { useInbox } from "../hooks/useInbox.ts";
 import { setTheme, THEMES } from "../hooks/useTheme.ts";
 import { useRange } from "../hooks/useRange.ts";
@@ -21,11 +21,11 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const { repo } = useRepo();
   const runs = useRuns(repo, days);
   const keep = (previous: RootSearch) => previous;
-  const page = (id: string, label: string, to: "/" | "/runs" | "/pulls" | "/insights" | "/speed" | "/runners" | "/settings", icon: typeof LayoutDashboard): Entry => ({ id, label, detail: "", icon, go: () => void navigate({ to, search: keep }) });
+  const page = (id: string, label: string, to: "/" | "/runs" | "/pulls" | "/insights" | "/memory" | "/speed" | "/runners" | "/settings", icon: typeof LayoutDashboard): Entry => ({ id, label, detail: "", icon, go: () => void navigate({ to, search: keep }) });
   const groups = [
     {
       value: "Pages",
-      items: [page("overview", "Overview", "/", LayoutDashboard), page("runs", "Runs", "/runs", ListTree), page("pulls", "Pull requests", "/pulls", GitPullRequest), page("insights", "Review analytics", "/insights", ChartColumn), page("speed", "Speed and cost", "/speed", Gauge), page("runners", "Runners", "/runners", Server), page("settings", "Settings", "/settings", Settings)],
+      items: [page("overview", "Overview", "/", LayoutDashboard), page("runs", "Runs", "/runs", ListTree), page("pulls", "Pull requests", "/pulls", GitPullRequest), page("insights", "Review analytics", "/insights", ChartColumn), page("memory", "Review memory", "/memory", BookMarked), page("speed", "Speed and cost", "/speed", Gauge), page("runners", "Runners", "/runners", Server), page("settings", "Settings", "/settings", Settings)],
     },
     {
       value: "Theme",

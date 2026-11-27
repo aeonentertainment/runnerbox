@@ -1,12 +1,13 @@
 import type { ReviewFinding } from "@runnerbox/contracts";
+import type { ReactNode } from "react";
 
 const priorityWords = { P1: "Fix before merging", P2: "Worth a look" } as const satisfies Record<ReviewFinding["priority"], string>;
 
 const lines = (finding: ReviewFinding) => (finding.endLine > finding.startLine ? `lines ${finding.startLine} to ${finding.endLine}` : `line ${finding.startLine}`);
 
 // One finding: how much it matters, what's wrong and where, and the lines it points at as they
-// are at the reviewed commit.
-export function FindingBlock({ finding }: { finding: ReviewFinding }) {
+// are at the reviewed commit, then `action`, what the owner can do about it.
+export function FindingBlock({ finding, action }: { finding: ReviewFinding; action?: ReactNode }) {
   return (
     <div className="pt-3">
       <div>
@@ -27,6 +28,7 @@ export function FindingBlock({ finding }: { finding: ReviewFinding }) {
           ))}
         </pre>
       ) : null}
+      {action}
     </div>
   );
 }
