@@ -183,6 +183,31 @@ export const ReviewsView = Schema.Struct({
 });
 export type ReviewsView = typeof ReviewsView.Type;
 
+// What reviews found over a window, from the reviews the server keeps. Days are UTC dates.
+export const ReviewInsightsDay = Schema.Struct({ day: Schema.String, first: Schema.Int, again: Schema.Int, p1: Schema.Int, p2: Schema.Int });
+// One finding, counted once however many reviews of its pull request repeat it. `addressed` is
+// whether a later review of the pull request stopped reporting it, or null before there is one.
+export const CaughtFinding = Schema.Struct({
+  priority: ReviewPriority,
+  title: Schema.String,
+  path: Schema.String,
+  repo: RepoName,
+  number: Schema.Int,
+  pullTitle: Schema.String,
+  foundAt: Schema.String,
+  addressed: Schema.NullOr(Schema.Boolean),
+});
+export type CaughtFinding = typeof CaughtFinding.Type;
+export const ReviewInsights = Schema.Struct({
+  days: Schema.Array(ReviewInsightsDay),
+  pulls: Schema.Int,
+  reviews: Schema.Int,
+  repos: Schema.Array(Schema.Struct({ repo: RepoName, reviews: Schema.Int, findings: Schema.Int })),
+  // The newest first, at most a few hundred.
+  findings: Schema.Array(CaughtFinding),
+});
+export type ReviewInsights = typeof ReviewInsights.Type;
+
 export class ReviewError extends Schema.TaggedError<ReviewError>()("ReviewError", {
   reason: Schema.Literals(["unreadable", "github_unreachable", "not_connected", "unknown_repo", "reviews_off", "pull_not_found", "review_running", "no_review", "provider_unavailable", "model_not_offered"]),
 }) {

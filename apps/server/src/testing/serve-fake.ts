@@ -13,6 +13,7 @@
 // It writes fixtures under <dir>, prints a pairing code, and runs until stopped. Never point it
 // at a real state directory. Keep <dir> short: the reproduce socket's path must fit in about
 // 100 characters.
+import { writeReviewHistory } from "./reviewHistory.ts";
 import { writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -75,6 +76,7 @@ await writeFile(fakeReportEnv, "GITHUB_TOKEN=not-a-real-token\n", { mode: 0o600 
 // in again goes through the stand-in's device flow.
 await writeGitHubSession(stateDir);
 await writeFile(join(stateDir, ".server", "reviews.json"), JSON.stringify({ v: 1, repos: ["owner/name"] }), { mode: 0o600 });
+await writeReviewHistory(stateDir, Date.now());
 const FAKE_GITHUB = { apiBase: fakeGitHub.apiBase, gitBase: reviewed.gitBase, loginBase: fakeGitHub.apiBase, app: TEST_APP, reportEnvPath: fakeReportEnv, timing: { pollMs: 20_000, slowMs: 120_000, maxBackoffMs: 300_000, idleMs: 60_000, checkMs: 1_000 } };
 
 const fake = makeFakeProvider({
