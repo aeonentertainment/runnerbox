@@ -2,7 +2,6 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Bell, Eye, GitBranch, GitPullRequest, Info, KeyRound, Plug, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { PaletteButton } from "../components/PaletteButton.tsx";
 import { handleSettingsSectionKeyDown } from "../components/settings/settingsSectionNavigation.ts";
-import { SidebarToggle } from "../components/SidebarToggle.tsx";
 import { SidebarContent, SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../components/ui/sidebar.tsx";
 import { WorkspaceBreadcrumb, WorkspaceBreadcrumbItem, WorkspaceBreadcrumbSeparator } from "../components/WorkspaceBreadcrumb.tsx";
 import type { RootSearch } from "../lib/search.ts";
@@ -69,7 +68,6 @@ export function SettingsPage() {
       </nav>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-3 border-b ps-3.5 pe-2">
-          <SidebarToggle />
           <WorkspaceBreadcrumb ariaLabel="Settings breadcrumb">
             {current ? (
               <>

@@ -1,0 +1,26 @@
+import { Activity, GitPullRequest } from "lucide-react";
+
+// The app is two products in one window. The open page says which one is showing.
+export type Product = "ci" | "review";
+
+export const productOf = (path: string): Product => (path === "/pulls" || path.startsWith("/pulls/") ? "review" : "ci");
+
+type PagePath = "/" | "/runs" | "/speed" | "/runners" | "/pulls";
+
+// Each product's pages, in tab order. The first is where the product opens.
+export const PRODUCTS = {
+  ci: {
+    label: "CI",
+    icon: Activity,
+    pages: [
+      { to: "/", label: "Overview" },
+      { to: "/runs", label: "Runs" },
+      { to: "/speed", label: "Speed and cost" },
+      { to: "/runners", label: "Runners" },
+    ],
+  },
+  review: { label: "Code Review", icon: GitPullRequest, pages: [{ to: "/pulls", label: "Pull requests" }] },
+} as const satisfies Record<Product, { label: string; icon: unknown; pages: ReadonlyArray<{ to: PagePath; label: string }> }>;
+
+// Overview, at "/", is open only there; the others also own the pages under them, such as a run.
+export const isOpen = (to: string, path: string) => path === to || (to !== "/" && path.startsWith(`${to}/`));
