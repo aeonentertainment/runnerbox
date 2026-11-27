@@ -1,3 +1,4 @@
+import { AlertRule, AlertsError, AlertsView } from "./alerts.ts";
 import { RerunError } from "./jobRerun.ts";
 import { JobLog, JobLogError } from "./jobLog.ts";
 import * as Schema from "effect/Schema";
@@ -135,6 +136,8 @@ export const RPC_METHODS = {
   proposalsDecline: "proposals.decline",
   proposalsRevert: "proposals.revert",
   monitorsStatus: "monitors.status",
+  alertsStatus: "alerts.status",
+  alertsSetRules: "alerts.setRules",
   monitorsSave: "monitors.save",
   monitorsMarkRead: "monitors.markRead",
   githubStatus: "github.status",
@@ -315,6 +318,9 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   Rpc.make(RPC_METHODS.proposalsDecline, { payload: ProposalId, success: Proposal, error: ProposalFailure }),
   // Makes a new proposal that puts an applied one's previous values back, to approve like any other.
   Rpc.make(RPC_METHODS.proposalsRevert, { payload: ProposalId, success: Proposal, error: ProposalFailure }),
+  Rpc.make(RPC_METHODS.alertsStatus, { success: AlertsView, error: Schema.Union([AuthorizationError, AlertsError]) }),
+  // Replaces every rule at once, as the settings page edits them.
+  Rpc.make(RPC_METHODS.alertsSetRules, { payload: { rules: Schema.Array(AlertRule) }, success: AlertsView, error: Schema.Union([AuthorizationError, AlertsError]) }),
   Rpc.make(RPC_METHODS.monitorsStatus, { success: MonitorStatus, error: Schema.Union([AuthorizationError, MonitorError]) }),
   Rpc.make(RPC_METHODS.monitorsSave, { payload: MonitorSettings, success: MonitorStatus, error: Schema.Union([AuthorizationError, MonitorError]) }),
   // The owner opened the item's thread, so its "Looked into" mark goes.
@@ -479,6 +485,8 @@ export const RPC_SCOPES = {
   [RPC_METHODS.proposalsDecline]: [...THREADS, "changes:approve"],
   [RPC_METHODS.proposalsRevert]: [...THREADS, "changes:approve"],
   // Turning monitors on decides what the owner's subscription or key is spent on, as accounts do.
+  [RPC_METHODS.alertsStatus]: HISTORY,
+  [RPC_METHODS.alertsSetRules]: ACCESS,
   [RPC_METHODS.monitorsStatus]: THREADS,
   [RPC_METHODS.monitorsSave]: ["access:write", "threads:operate"],
   [RPC_METHODS.monitorsMarkRead]: THREADS,
