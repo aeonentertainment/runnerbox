@@ -1,4 +1,5 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import type { ReviewRules } from "@runnerbox/contracts";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { runtime } from "../runtime.ts";
@@ -19,9 +20,11 @@ export function useReviews() {
   return {
     available: capabilities.reviews,
     posting: capabilities.reviewPosting,
+    rulesAvailable: capabilities.reviewRules,
     view: Option.getOrNull(AsyncResult.value(status)),
     setRepo: (repo: string, review: boolean) => runtime.run(environmentId, (client) => client["reviews.setRepo"]({ repo, review })).then(show),
     setPost: (repo: string, post: boolean) => runtime.run(environmentId, (client) => client["reviews.setPost"]({ repo, post })).then(show),
     setModel: (model: string) => runtime.run(environmentId, (client) => client["reviews.setModel"]({ model })).then(show),
+    setRules: (rules: ReviewRules) => runtime.run(environmentId, (client) => client["reviews.setRules"]({ rules })).then(show),
   };
 }

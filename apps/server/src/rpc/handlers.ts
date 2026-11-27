@@ -152,6 +152,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
         "reviews.setRepo": ({ repo, review }) => reviews.setRepo(repo, review, mayReview),
         "reviews.setPost": ({ repo, post }) => reviews.setPost(repo, post, mayReview),
         "reviews.setModel": ({ model }) => reviews.setModel(model, mayReview),
+        "reviews.setRules": ({ rules }) => reviews.setRules(rules, mayReview),
         "reviews.read": ({ repo, number }) => reviewRuns.read(repo, number, mayReview.review),
         "reviews.start": ({ repo, number }) => reviewRuns.start(repo, number),
         "reviews.stop": ({ repo, number }) => reviewRuns.stop(repo, number),

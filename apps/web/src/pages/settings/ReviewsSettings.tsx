@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { ReviewRulesSections } from "../../components/settings/ReviewRulesSections.tsx";
 import { SettingsIntro } from "../../components/settings/SettingsIntro.tsx";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "../../components/settings/settingsLayout.tsx";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../components/ui/select.tsx";
@@ -13,7 +14,7 @@ const words = (cause: unknown) => (cause instanceof Error ? cause.message : "Tha
 // Reviews: which repositories are read, whether their reviews are posted on the pull request, and
 // the model that reviews. The sign-in they read through is GitHub's page.
 export function ReviewsSettings() {
-  const { view, available, posting, setRepo, setPost, setModel } = useReviews();
+  const { view, available, posting, rulesAvailable, setRepo, setPost, setModel, setRules } = useReviews();
   const [error, setError] = useState<string | null>(null);
   if (!available) return <SettingsPageContainer><SettingsIntro>This server is older than reviews. Update it under About.</SettingsIntro></SettingsPageContainer>;
   if (view === null) return null;
@@ -25,7 +26,7 @@ export function ReviewsSettings() {
   return (
     <SettingsPageContainer>
       <SettingsIntro>
-        Runnerbox reads the open pull requests on the repositories you turn on, through the server's sign-in to GitHub. A pull request opened after that is reviewed on its own, and again on every push once it's quiet for a minute. Drafts, bots' and forks' are left for you to ask. Findings show under Pull requests, and on the pull request itself where you turn that on below.
+        Runnerbox reads the open pull requests on the repositories you turn on, through the server's sign-in to GitHub. A pull request opened after that is reviewed on its own, and again on every push once it's quiet for a minute, unless the rules below skip it. Bots' and forks' are left for you to ask. Findings show under Pull requests, and on the pull request itself where you turn that on below.
       </SettingsIntro>
       {app === null ? (
         <SettingsIntro>
@@ -69,6 +70,7 @@ export function ReviewsSettings() {
                 ))}
             </SettingsSection>
           ) : null}
+          {rulesAvailable && view.rules !== undefined ? <ReviewRulesSections rules={view.rules} disabled={!canConfigure} onChange={(next) => act(setRules(next))} /> : null}
           {view.models !== undefined && view.model !== undefined ? (
             <SettingsSection title="Reviewer">
               <SettingsRow

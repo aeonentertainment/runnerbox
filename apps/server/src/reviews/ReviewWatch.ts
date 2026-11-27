@@ -59,10 +59,10 @@ const make = Effect.gen(function* () {
   });
 
   const pass = Effect.gen(function* () {
-    const { pulls, since } = yield* reviews.open;
+    const { pulls, since, rules } = yield* reviews.open;
     for (const pull of pulls) {
       const now = yield* Clock.currentTimeMillis;
-      if (!wantsReview(pull, { since: since[pull.repo], reviews: yield* store.list(pull.repo, pull.number), now })) continue;
+      if (!wantsReview(pull, { since: since[pull.repo], reviews: yield* store.list(pull.repo, pull.number), now, rules })) continue;
       const { recent, room } = yield* budget;
       if (!room) return;
       // Counted only once it has started. One that couldn't, such as while an earlier commit's review

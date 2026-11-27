@@ -1,7 +1,7 @@
 import type { PullRequest } from "@runnerbox/contracts";
 import { formatAge } from "../../lib/format.ts";
 import { hasFindings, standingOf } from "../../lib/pullStanding.ts";
-import { skippedWords } from "../../lib/reviewWords.ts";
+import { skippedByWords, skippedWords } from "../../lib/reviewWords.ts";
 import { cn } from "../../lib/utils.ts";
 
 // What a pull request's review and checks say, in a few words, and the dot that goes with it.
@@ -17,7 +17,7 @@ function said(pull: PullRequest) {
   if (review?.state === "failed") return { words: "Review failed", dot: "bg-destructive", text: "text-muted-foreground" };
   if (review?.state === "done") return { words: "New commits since", dot: "bg-muted-foreground/60", text: "text-muted-foreground" };
   if (review?.state === "stopped") return { words: "Stopped", dot: "bg-muted-foreground/60", text: "text-muted-foreground" };
-  return { words: pull.skipped ? skippedWords[pull.skipped] : "Not reviewed", dot: "bg-muted-foreground/60", text: "text-muted-foreground" };
+  return { words: pull.skipped ? skippedWords[pull.skipped] : pull.skippedBy ? skippedByWords[pull.skippedBy] : "Not reviewed", dot: "bg-muted-foreground/60", text: "text-muted-foreground" };
 }
 
 export function ReviewDot({ pull }: { pull: PullRequest }) {
