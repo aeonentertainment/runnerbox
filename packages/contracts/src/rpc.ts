@@ -19,7 +19,7 @@ import { Provider, ProviderAccount, SaveProviderAccount } from "./providers.ts";
 import { ApplyWhen, Proposal, ProposalError, ProposalList } from "./proposals.ts";
 import { MonitorError, MonitorSettings, MonitorStatus } from "./monitors.ts";
 import { MoveCiError, MoveCiView, RunnerLabel, RunnerVariable } from "./moveCi.ts";
-import { PullNumber, PullReviews, Review, ReviewError, ReviewRules, ReviewsView } from "./reviews.ts";
+import { PullNumber, PullReviews, Review, ReviewError, ReviewInsights, ReviewRules, ReviewsView } from "./reviews.ts";
 import { ReleaseCheck, ReleaseVersion, ServerUpdateError, UpdateProgress, UpdateStatus } from "./update.ts";
 import { CreateThread, MAX_REFERENCES, MessageText, ThreadReference, ProviderStatus, ReproduceCheck, ReproduceError, ReproduceNetwork, ThreadDetail, ThreadError, ThreadEvent, ThreadSubject, ThreadSummary } from "./threads.ts";
 
@@ -151,6 +151,7 @@ export const RPC_METHODS = {
   reviewsSetModel: "reviews.setModel",
   reviewsSetRules: "reviews.setRules",
   reviewsRead: "reviews.read",
+  reviewsInsights: "reviews.insights",
   reviewsStart: "reviews.start",
   reviewsStop: "reviews.stop",
 } as const;
@@ -346,6 +347,7 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   Rpc.make(RPC_METHODS.reviewsSetRules, { payload: { rules: ReviewRules }, success: ReviewsView, error: ReviewFailure }),
   // A pull request's reviews as the server keeps them, each saying whether it was posted on the pull request.
   Rpc.make(RPC_METHODS.reviewsRead, { payload: { repo: RepoName, number: PullNumber }, success: PullReviews, error: ReviewFailure }),
+  Rpc.make(RPC_METHODS.reviewsInsights, { payload: { days: Days }, success: ReviewInsights, error: ReviewFailure }),
   // Starts a review of the pull request's newest commit and returns at once; the review fills in as it runs.
   Rpc.make(RPC_METHODS.reviewsStart, { payload: { repo: RepoName, number: PullNumber }, success: Review, error: ReviewFailure }),
   Rpc.make(RPC_METHODS.reviewsStop, { payload: { repo: RepoName, number: PullNumber }, success: Review, error: ReviewFailure }),
@@ -489,6 +491,7 @@ export const RPC_SCOPES = {
   [RPC_METHODS.reviewsSetModel]: ACCESS,
   [RPC_METHODS.reviewsSetRules]: ACCESS,
   [RPC_METHODS.reviewsRead]: HISTORY,
+  [RPC_METHODS.reviewsInsights]: HISTORY,
   // A review is an agent turn on the owner's account, so it takes what starting a thread's turn takes.
   [RPC_METHODS.reviewsStart]: THREADS,
   [RPC_METHODS.reviewsStop]: THREADS,

@@ -2,22 +2,9 @@ import type { DayTotals } from "@runnerbox/contracts";
 import type { comparedPeriods } from "../../lib/addTotals.ts";
 import { formatDuration } from "../../lib/format.ts";
 import { hoursText, percentText } from "./durationWords.ts";
+import { Total } from "./Total.tsx";
 
 type Compared = NonNullable<ReturnType<typeof comparedPeriods>>;
-
-function Total({ label, value, under, why }: { label: string; value: string; under: string | null; why: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-muted-foreground">{label}</div>
-      <div className="font-semibold text-[28px] leading-tight tracking-tight">{value}</div>
-      {under ? (
-        <div className="text-muted-foreground/75 text-xs" title={why}>
-          {under}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 // "9% more than last week", or "same as".
 function change(now: number, before: number, words: string, percent: boolean) {

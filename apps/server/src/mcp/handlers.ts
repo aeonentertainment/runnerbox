@@ -4,6 +4,7 @@ import * as JobHistory from "../history/JobHistory.ts";
 import * as Inbox from "../inbox/Inbox.ts";
 import * as Proposals from "../proposals/Proposals.ts";
 import * as LauncherLogs from "../runners/LauncherLogs.ts";
+import * as Reviews from "../reviews/Reviews.ts";
 import * as RunnerState from "../runners/RunnerState.ts";
 import { RunnerboxToolkit } from "./tools.ts";
 
@@ -17,6 +18,7 @@ export const layer = RunnerboxToolkit.toLayer(
     const inbox = yield* Inbox.Inbox;
     const runners = yield* RunnerState.RunnerState;
     const proposals = yield* Proposals.Proposals;
+    const reviews = yield* Reviews.Reviews;
     return {
       list_repos: () => history.repos.pipe(toFailure),
       ci_inbox: ({ days }) => inbox.list(days).pipe(toFailure),
@@ -29,6 +31,7 @@ export const layer = RunnerboxToolkit.toLayer(
       launcher_events: ({ days }) => launcher.events(days).pipe(toFailure),
       machine_samples: ({ days, maxPoints }) => launcher.samples(days, maxPoints).pipe(toFailure),
       runner_state: () => runners.current.pipe(toFailure),
+      review_insights: ({ days }) => reviews.insights(days).pipe(Effect.mapError((error) => ({ message: error.message }))),
       install_settings: ({ install }) => proposals.settings(install).pipe(Effect.map(({ ok: _ok, ...settings }) => settings), Effect.mapError((error) => ({ message: error.why }))),
     };
   }),

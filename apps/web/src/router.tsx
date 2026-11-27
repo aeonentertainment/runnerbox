@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell.tsx";
 import { parseSearch } from "./lib/search.ts";
 import { NotificationPage } from "./pages/NotificationPage.tsx";
 import { OverviewPage } from "./pages/OverviewPage.tsx";
+import { ReviewInsightsPage } from "./pages/ReviewInsightsPage.tsx";
 import { PullRequestsPage } from "./pages/PullRequestsPage.tsx";
 import { RunnersPage } from "./pages/RunnersPage.tsx";
 import { RunPage } from "./pages/RunPage.tsx";
@@ -43,6 +44,7 @@ const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/runs/$jobId", component: RunPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/pulls", component: PullRequestsPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/pulls/$owner/$name/$number", component: PullRequestsPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/insights", component: ReviewInsightsPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/speed", component: SpeedPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/runners", component: RunnersPage }),
   settingsRoute.addChildren([

@@ -49,9 +49,11 @@ export type Capabilities = {
   readonly reviewPosting: boolean;
   // `reviews.setRules`: the owner's rules for which pull requests are reviewed and what's reported.
   readonly reviewRules: boolean;
+  // `reviews.insights`: what finished reviews found, for Code Review's Analytics.
+  readonly reviewInsights: boolean;
 };
 
-export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false, reviewPosting: false, reviewRules: false };
+export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false, reviewPosting: false, reviewRules: false, reviewInsights: false };
 
 export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilities {
   if (methods === null) return NO_CAPABILITIES;
@@ -82,5 +84,6 @@ export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilit
     reviewBot: has(RPC_METHODS.githubBotStatus) && has(RPC_METHODS.githubBotSetup),
     reviewPosting: has(RPC_METHODS.reviewsSetPost),
     reviewRules: has(RPC_METHODS.reviewsSetRules),
+    reviewInsights: has(RPC_METHODS.reviewsInsights),
   };
 }

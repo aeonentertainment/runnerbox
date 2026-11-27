@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { DEFAULT_REVIEW_RULES, type GitHubError, type PullRequest, type Review, ReviewError, ReviewRules, type ReviewSummary, type ReviewsView } from "@runnerbox/contracts";
+import { DEFAULT_REVIEW_RULES, type GitHubError, type PullRequest, type Review, ReviewError, type ReviewInsights, ReviewRules, type ReviewSummary, type ReviewsView } from "@runnerbox/contracts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -18,6 +18,7 @@ import { QueueConfig } from "../runners/QueueConfig.ts";
 import { type ListedPull, ruleSkipOf, skipOf } from "./autoReview.ts";
 import * as PullChecks from "./PullChecks.ts";
 import { pullsOf } from "./pullRequests.ts";
+import { reviewInsights } from "./reviewInsights.ts";
 import { DEFAULT_REVIEW_MODEL, offersReviewModel, REVIEW_MODELS } from "./reviewModels.ts";
 import * as ReviewStore from "./ReviewStore.ts";
 
@@ -65,6 +66,8 @@ export class Reviews extends Context.Service<
     // repository, and a repository whose list may be cut short is left out. For the inbox, which
     // counts the pull requests a failing check blocks.
     readonly heads: Effect.Effect<ReadonlyMap<string, ReadonlyArray<string>> | null, ReviewError>;
+    // What finished reviews found over the last `days`, from the reviews kept here.
+    readonly insights: (days: number) => Effect.Effect<ReviewInsights, ReviewError>;
     // Counts up when the view may have changed here: a setting saved, or a look that read GitHub.
     readonly changed: Stream.Stream<number>;
   }
@@ -249,7 +252,11 @@ const make = Effect.gen(function* () {
     return new Map(listedOn.filter(([, heads]) => heads.length < PULLS_PER_REPO));
   });
 
-  return Reviews.of({ status, setRepo, setPost, setModel, setRules, settings, open, heads, changed: SubscriptionRef.changes(changed) });
+  const insights = Effect.fn("Reviews.insights")(function* (days: number) {
+    return reviewInsights(yield* store.all, yield* Clock.currentTimeMillis, days);
+  });
+
+  return Reviews.of({ status, setRepo, setPost, setModel, setRules, settings, insights, open, heads, changed: SubscriptionRef.changes(changed) });
 });
 
 export const layer = Layer.effect(Reviews, make);
