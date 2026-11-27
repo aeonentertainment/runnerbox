@@ -1,12 +1,33 @@
+import type { JobLog } from "@runnerbox/contracts";
 import * as Effect from "effect/Effect";
 import type { LogReadError } from "../history/StateLogs.ts";
 import * as JobHistory from "../history/JobHistory.ts";
 import * as Inbox from "../inbox/Inbox.ts";
+import * as JobLogs from "../jobLogs/JobLogs.ts";
 import * as Proposals from "../proposals/Proposals.ts";
 import * as LauncherLogs from "../runners/LauncherLogs.ts";
 import * as Reviews from "../reviews/Reviews.ts";
 import * as RunnerState from "../runners/RunnerState.ts";
 import { RunnerboxToolkit } from "./tools.ts";
+
+// An agent gets the end of a log, where a job fails, and every section's title and errors, so one
+// long log doesn't fill its context.
+const AGENT_LINES = 300;
+const forAgent = (log: JobLog): JobLog => {
+  let left = AGENT_LINES;
+  let trimmed = false;
+  const sections = log.sections
+    .toReversed()
+    .map((section) => {
+      const kept = left > 0 ? section.lines.slice(-left) : [];
+      left -= kept.length;
+      const dropped = section.lines.slice(0, section.lines.length - kept.length);
+      if (dropped.length > 0) trimmed = true;
+      return { ...section, lines: [...dropped.filter((line) => line.error), ...kept] };
+    })
+    .toReversed();
+  return { sections, cut: log.cut || trimmed };
+};
 
 const toFailure = Effect.mapError((error: LogReadError) => ({ message: error.message }));
 
@@ -19,6 +40,7 @@ export const layer = RunnerboxToolkit.toLayer(
     const runners = yield* RunnerState.RunnerState;
     const proposals = yield* Proposals.Proposals;
     const reviews = yield* Reviews.Reviews;
+    const jobLogs = yield* JobLogs.JobLogs;
     return {
       list_repos: () => history.repos.pipe(toFailure),
       ci_inbox: ({ days }) => inbox.list(days).pipe(toFailure),
@@ -32,6 +54,7 @@ export const layer = RunnerboxToolkit.toLayer(
       machine_samples: ({ days, maxPoints }) => launcher.samples(days, maxPoints).pipe(toFailure),
       runner_state: () => runners.current.pipe(toFailure),
       review_insights: ({ days }) => reviews.insights(days).pipe(Effect.mapError((error) => ({ message: error.message }))),
+      job_log: ({ repo, jobId }) => jobLogs.read(repo, jobId).pipe(Effect.map(forAgent), Effect.mapError((error) => ({ message: error.message }))),
       install_settings: ({ install }) => proposals.settings(install).pipe(Effect.map(({ ok: _ok, ...settings }) => settings), Effect.mapError((error) => ({ message: error.why }))),
     };
   }),

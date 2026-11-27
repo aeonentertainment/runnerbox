@@ -9,6 +9,26 @@ import { createServer } from "node:http";
 // asks for a code. owner/other isn't set up for Move CI until something POSTs `/fake/commit`, which
 // commits its patch as someone would; posting again takes it back out.
 // `code` is the first pull request's real commits and diff, from reviewFixture.ts, so it can be reviewed.
+// A failing test job's log, in GitHub's format.
+const SAMPLE_LOG = [
+  "2026-11-20T10:00:00.0000000Z Current runner version: '2.330.0'",
+  "2026-11-20T10:00:00.1000000Z Runner name: 'example-1'",
+  "2026-11-20T10:00:01.0000000Z ##[group]Run actions/checkout@v4",
+  "2026-11-20T10:00:01.1000000Z Syncing repository: owner/name",
+  "2026-11-20T10:00:03.0000000Z ##[endgroup]",
+  "2026-11-20T10:00:03.1000000Z ##[group]Run pnpm install --frozen-lockfile",
+  "2026-11-20T10:00:09.0000000Z Done in 5.9s",
+  "2026-11-20T10:00:09.1000000Z ##[endgroup]",
+  "2026-11-20T10:00:09.2000000Z ##[group]Run pnpm test",
+  ...Array.from({ length: 40 }, (_, index) => `2026-11-20T10:00:${String(10 + Math.floor(index / 2)).padStart(2, "0")}.0000000Z \u001b[32m✔\u001b[0m queue test ${index + 1}`),
+  "2026-11-20T10:00:31.0000000Z \u001b[31m✖\u001b[0m a job whose runner is gone waits again",
+  "2026-11-20T10:00:31.1000000Z   AssertionError: expected [] to deeply equal [ 7 ]",
+  "2026-11-20T10:00:31.2000000Z ##[error]Process completed with exit code 1.",
+  "2026-11-20T10:00:31.3000000Z ##[endgroup]",
+  "2026-11-20T10:00:32.0000000Z Cleaning up orphan processes",
+  "",
+].join("\n");
+
 export async function startFakeGitHub(now: number, code?: { readonly baseSha: string; readonly headSha: string; readonly diff: string }) {
   const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
   const runs = { workflow_runs: [{ id: 7, created_at: ago(6) }, { id: 8, created_at: ago(2) }] };
@@ -108,6 +128,10 @@ export async function startFakeGitHub(now: number, code?: { readonly baseSha: st
       });
       return;
     }
+    // Any job's log, by way of a redirect to the stand-in's own storage, as GitHub sends one.
+    const logOf = /^\/repos\/owner\/(?:name|other)\/actions\/jobs\/(\d+)\/logs$/.exec(path);
+    if (logOf) return void response.writeHead(302, { ...rate, location: `${base()}/storage/logs/${logOf[1]}` }).end();
+    if (path.startsWith("/storage/logs/")) return void response.writeHead(200, { "content-type": "text/plain" }).end(SAMPLE_LOG);
     if (code && path === `/repos/owner/name/compare/${code.baseSha}...${code.headSha}`) return void response.writeHead(200, { ...rate, "content-type": "text/plain" }).end(code.diff);
     const reply = replies[path] ?? (path.includes("/actions/runs?") ? { workflow_runs: [] } : undefined);
     if (reply === undefined) return void response.writeHead(404, rate).end("{}");
