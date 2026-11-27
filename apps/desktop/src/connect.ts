@@ -90,6 +90,21 @@ export function createConnect(directory: string, cipher: TokenCipher, openBrowse
       if (!key) throw new Error("That proof key is gone. Reconnect to make a new one.");
       return createProof(key, request);
     },
+    async alertDestinations() {
+      const { relayUrl, token } = await accessToken();
+      return relayClient(relayUrl).alertDestinations(token);
+    },
+    // Opens Slack's own install screen in the browser, and only that.
+    async connectSlack() {
+      const { relayUrl, token } = await accessToken();
+      const { url } = await relayClient(relayUrl).connectSlack(token);
+      if (!url.startsWith("https://slack.com/oauth/v2/authorize?")) throw new Error("The relay sent an address that isn't Slack's.");
+      openBrowser(url);
+    },
+    async disconnectSlack() {
+      const { relayUrl, token } = await accessToken();
+      await relayClient(relayUrl).disconnectSlack(token);
+    },
     async requestCredential(environmentId: string, clientProofKeyThumbprint: string) {
       const { relayUrl, token } = await accessToken();
       return relayClient(relayUrl).connect(token, environmentId, clientProofKeyThumbprint);

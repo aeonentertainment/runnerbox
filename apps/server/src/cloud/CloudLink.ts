@@ -72,6 +72,9 @@ export class CloudLink extends Context.Service<
     readonly state: Effect.Effect<LinkState | null, CloudLinkError>;
     readonly link: (input: { readonly relayUrl: string; readonly accessToken: string; readonly tunnelPort: number }) => Effect.Effect<LinkState, CloudLinkError>;
     readonly unlink: Effect.Effect<void, CloudLinkError | NotLinked>;
+    // Asks the relay to send an alert wherever the linked user connected, such as Slack. Signed with
+    // the environment's key, so it needs no sign-in. False when the relay didn't send it.
+    readonly notify: (alert: { readonly kind: string; readonly title: string }) => Effect.Effect<boolean, CloudLinkError | NotLinked>;
     // Tells the relay this host can replace its tunnel, and whether the relay reclaimed it.
     readonly registerRecovery: Effect.Effect<{ readonly tunnelReleased: boolean }, CloudLinkError | NotLinked>;
     // Asks for a replacement under the same hostname, and stores its connector token.
@@ -158,6 +161,19 @@ const make = Effect.gen(function* () {
     yield* promise("relay", () => relayClient(current.relayUrl).unlink(proof));
     yield* fs.remove(statePath).pipe(Effect.mapError((cause) => new CloudLinkError({ operation: "write", cause })));
   }).pipe(Effect.withSpan("CloudLink.unlink"));
+
+  const notify = Effect.fn("CloudLink.notify")(function* (alert: { readonly kind: string; readonly title: string }) {
+    const current = yield* linked;
+    const now = yield* seconds;
+    const proof = yield* promise("key", () =>
+      signJwt({
+        privateKey: key.privateKey,
+        typ: CONNECT_TYP.notify,
+        payload: { iss: audience, aud: current.relayIssuer, sub: descriptor.environmentId, jti: crypto.randomUUID(), iat: now, exp: now + LINK_PROOF_SECONDS, environmentId: descriptor.environmentId, cloudUserId: current.cloudUserId, alert: { kind: alert.kind, title: alert.title.slice(0, 300) } },
+      }),
+    );
+    return (yield* promise("relay", () => relayClient(current.relayUrl).notify(proof))).sent;
+  });
 
   const signRecovery = Effect.fnUntraced(function* (typ: string, current: LinkState) {
     const { privateKey } = key;
@@ -270,7 +286,7 @@ const make = Effect.gen(function* () {
     return { checkedAt, descriptor, proof: signed };
   });
 
-  return CloudLink.of({ state, link, unlink, registerRecovery, replaceTunnel, mint, health });
+  return CloudLink.of({ state, link, unlink, notify, registerRecovery, replaceTunnel, mint, health });
 });
 
 export const layer = Layer.effect(CloudLink, make);
