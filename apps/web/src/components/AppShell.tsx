@@ -9,6 +9,7 @@ import { PanelAnimationSuppressionProvider, usePanelAnimationSettings, usePanelN
 import { appAtomRegistry } from "../rpc/atomRegistry.ts";
 import { runtime } from "../runtime.ts";
 import { AppSidebar } from "./AppSidebar.tsx";
+import { BottomBar } from "./BottomBar.tsx";
 import { ChatDock } from "./ChatDock.tsx";
 import { CommandPalette } from "./CommandPalette.tsx";
 import { ConnectionNotice } from "./ConnectionNotice.tsx";
@@ -19,7 +20,8 @@ import { ToastProvider } from "./ui/toast.tsx";
 import { TooltipProvider } from "./ui/tooltip.tsx";
 
 // T3 Code's layout, with its sidebar held at the rail: the products on the left, and the open page in
-// the main column, which draws its own bar with the product's pages as tabs.
+// the main column, which draws its own bar with the product's pages as tabs. On a phone the rail
+// moves to the bottom.
 export function AppShell() {
   const loaded = useStore(runtime.store, (state) => state.loaded);
   const { environment } = useActiveEnvironment();
@@ -67,6 +69,8 @@ export function AppShell() {
                 </div>
                 <ChatDock />
               </div>
+              {/* A phone has no room for the rail, so it sits along the bottom instead. */}
+              <BottomBar className="md:hidden" />
             </SidebarInset>
           </SidebarProvider>
         </PanelAnimationSuppressionProvider>
