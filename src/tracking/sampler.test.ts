@@ -38,12 +38,13 @@ test("docker stats lines give each container's CPU and memory, whatever the unit
   assert.equal(parseContainer("not json"), undefined);
 });
 
-test("a sample has both machines and every container, with CPU from the second sample on", async () => {
+test("a sample has both machines and every container, with CPU from the second sample on and disk when df answers", async () => {
   const samples: Sample[] = [];
   let [busy, idle] = [100, 900];
   const vm = () =>
     Promise.resolve(
       `@@meminfo\n${meminfo(900, 4096)}@@loadavg\n2.50 1.00 0.50 1/100 42\n@@stat\ncpu ${busy} 0 0 ${idle} 0\n` +
+        `@@df\n${busy === 100 ? "" : "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/vda1 41943040 31457280 10485760 75% /\n"}` +
         '@@containers\n{"Name":"box-slot1","CPUPerc":"50%","MemUsage":"700MiB / 3GiB"}\n',
     );
   const sample = createSampler({
@@ -60,6 +61,7 @@ test("a sample has both machines and every container, with CPU from the second s
   assert.equal(samples[0]?.host, undefined);
   assert.deepEqual(samples[0]?.vm, { totalMiB: 4096, availableMiB: 900, swapUsedMiB: 0, load1: 2.5 });
   assert.equal(samples[1]?.vm?.cpuBusyPercent, 30);
+  assert.deepEqual([samples[1]?.vm?.diskTotalMiB, samples[1]?.vm?.diskUsedMiB], [40960, 30720]);
   assert.deepEqual(samples[1]?.containers, [{ name: "box-slot1", cpuPercent: 50, memMiB: 700 }]);
 });
 
@@ -84,5 +86,5 @@ test("the VM command keeps its sections when Docker times out", () => {
     env: { PATH: `${fakeBin}:/usr/bin:/bin` },
   });
   const sections = splitSections(output);
-  assert.deepEqual(Object.keys(sections), ["meminfo", "loadavg", "stat"]);
+  assert.deepEqual(Object.keys(sections), ["meminfo", "loadavg", "stat", "df"]);
 });

@@ -78,7 +78,14 @@ export function jobResources(input: ResourceInput): JobResources {
   const points = [...byTime.values()].toSorted((a, b) => a.offsetMs - b.offsetMs);
   const vm: VmPoint[] = input.samples.flatMap(({ install, sample }) =>
     install === container.install && sample.vm && Date.parse(sample.time) >= jobStart && Date.parse(sample.time) <= jobEnd
-      ? [{ offsetMs: Date.parse(sample.time) - jobStart, availableMiB: sample.vm.availableMiB, totalMiB: sample.vm.totalMiB }]
+      ? [
+          {
+            offsetMs: Date.parse(sample.time) - jobStart,
+            availableMiB: sample.vm.availableMiB,
+            totalMiB: sample.vm.totalMiB,
+            ...(sample.vm.diskUsedMiB !== undefined && sample.vm.diskTotalMiB !== undefined ? { diskUsedMiB: sample.vm.diskUsedMiB, diskTotalMiB: sample.vm.diskTotalMiB } : {}),
+          },
+        ]
       : [],
   );
   const event = container.event;

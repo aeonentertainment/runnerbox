@@ -20,6 +20,7 @@ Everything runnerbox records stays on the host, in `~/.local/state/runnerbox/` (
 - `totalMiB` and `availableMiB`: `MemTotal` and `MemAvailable` from `/proc/meminfo`.
 - `swapUsedMiB`: `SwapTotal` minus `SwapFree`.
 - `load1`: the one-minute load average.
+- `diskTotalMiB` and `diskUsedMiB`: from `df -Pk`, of `/var/lib/docker` on the VM (or `/` when Docker's data isn't its own filesystem) and of `/` on the host. Absent when `df` didn't answer.
 - `cpuBusyPercent`: busy time across all CPUs since the previous sample. It doesn't count idle, iowait or steal time (time the hypervisor gave to something else), and counts a VM's guest time once.
 
 `containers` lists every container in the VM, from `docker stats`. Each has a `name`, its `cpuPercent` and its `memMiB`. Another launcher's containers are included, so the two can be compared. It's absent when Docker didn't answer within 10 seconds, and empty when no containers were running.

@@ -7,6 +7,8 @@ export const MachineRecord = type({
   swapUsedMiB: "number",
   load1: "number",
   "cpuBusyPercent?": "number",
+  "diskTotalMiB?": "number",
+  "diskUsedMiB?": "number",
 });
 
 export const ContainerRecord = type({ name: "string", cpuPercent: "number", memMiB: "number" });

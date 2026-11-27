@@ -371,6 +371,7 @@ function startSampler(config: VmInstall, containers: { start: () => void; ours: 
       meminfo: await readProc("meminfo"),
       loadavg: await readProc("loadavg"),
       stat: (await readProc("stat")).split("\n")[0] ?? "",
+      df: await promisify(execFile)("df", ["-Pk", "/"], { timeout: 10_000 }).then(({ stdout }) => stdout, () => ""),
     }),
     readVm: () => readFromVm({ vm: config.vm, command: VM_SAMPLE_COMMAND }),
     append: async (record) => {

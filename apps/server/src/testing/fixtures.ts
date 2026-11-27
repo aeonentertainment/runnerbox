@@ -225,7 +225,8 @@ export async function writeFixtures(dir: string, now: number) {
     samples.push({
       time: iso(at),
       host: { totalMiB: 65_536, availableMiB: Math.round(30_000 + busy * 12_000), swapUsedMiB: 0, load1: Math.round((1 + busy * 6) * 100) / 100, cpuBusyPercent: Math.round(10 + busy * 55) },
-      vm: { totalMiB: 16_384, availableMiB: vmAvailable, swapUsedMiB: swap, load1: Math.round((0.5 + busy * 5) * 100) / 100, cpuBusyPercent: Math.round(5 + busy * 80) },
+      // Build caches fill the VM's disk over six hours, until a prune clears them.
+      vm: { totalMiB: 16_384, availableMiB: vmAvailable, swapUsedMiB: swap, load1: Math.round((0.5 + busy * 5) * 100) / 100, cpuBusyPercent: Math.round(5 + busy * 80), diskTotalMiB: 81_920, diskUsedMiB: Math.round(30_000 + ((at % (6 * HOUR)) / (6 * HOUR)) * 40_000 + busy * 2_000) },
       containers: containersAt(at),
     });
   }
