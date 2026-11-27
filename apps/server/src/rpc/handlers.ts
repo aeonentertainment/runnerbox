@@ -4,6 +4,7 @@ import * as Stream from "effect/Stream";
 import type { Session } from "../auth/AuthStore.ts";
 import * as AuthStore from "../auth/AuthStore.ts";
 import * as DailyTotals from "../history/DailyTotals.ts";
+import * as JobLogs from "../jobLogs/JobLogs.ts";
 import * as JobHistory from "../history/JobHistory.ts";
 import type { LogReadError } from "../history/StateLogs.ts";
 import * as Inbox from "../inbox/Inbox.ts";
@@ -58,6 +59,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
       // The same scopes the server checks on moveCi.setRunner, so the switch is never offered when it would be refused.
       const mayMove = { switch: RPC_SCOPES[RPC_METHODS.moveCiSetRunner].every((scope) => session.scopes.includes(scope)) };
       const reviews = yield* Reviews.Reviews;
+      const jobLogs = yield* JobLogs.JobLogs;
       const reviewRuns = yield* ReviewRuns.ReviewRuns;
       const reviewWatch = yield* ReviewWatch.ReviewWatch;
       // The same scopes the server checks on reviews.setRepo and reviews.start, so a switch or a button is never offered when it would be refused.
@@ -91,6 +93,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
         "history.whereRan": ({ days }) => history.whereRan(days).pipe(toWire),
         "history.dailyTotals": ({ days, repo }) =>
           dailyTotals.days(days, repo).pipe(Effect.mapError((error) => new StateReadError({ what: error._tag === "ReviewError" ? "reviews" : error.what }))),
+        "history.jobLog": ({ repo, jobId }) => jobLogs.read(repo, jobId),
         "history.jobResources": (input) =>
           history.jobResources(input).pipe(Effect.mapError((error) => new StateReadError({ what: error._tag === "JobNotFound" ? `job ${error.jobId}` : error.what }))),
         "inbox.list": ({ days }) => inbox.list(days).pipe(toWire),

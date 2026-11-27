@@ -1,4 +1,5 @@
 import { useParams } from "@tanstack/react-router";
+import { JobLogView } from "../components/job/JobLogView.tsx";
 import { JobResourcesView } from "../components/job/JobResourcesView.tsx";
 import { PageBar } from "../components/PageBar.tsx";
 import { RangeMenu } from "../components/RangeMenu.tsx";
@@ -6,6 +7,7 @@ import { Reading } from "../components/Reading.tsx";
 import { ThreadColumn } from "../components/ThreadColumn.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty.tsx";
+import { useActiveEnvironment } from "../hooks/useEnvironment.ts";
 import { useJobResources } from "../hooks/useJobResources.ts";
 import { useRange } from "../hooks/useRange.ts";
 import { useRepo } from "../hooks/useRepo.ts";
@@ -22,7 +24,8 @@ export function RunPage() {
   const runs = useRuns(repo, days);
   const run = runs.data?.find((candidate) => String(candidate.jobId) === jobId);
   const resources = useJobResources(run);
-  const { jobResources } = useServerCapabilities();
+  const { jobResources, jobLog } = useServerCapabilities();
+  const environmentId = useActiveEnvironment().environment?.environmentId ?? "";
   // Everything under What happened waits for the readings, so the page arrives whole and a finding
   // never replaces the verdict's words after it has drawn.
   const settled = !jobResources || resources.isSuccess || resources.isError;
@@ -76,6 +79,11 @@ export function RunPage() {
                 <Reading.Section heading="Why">{VERDICT_WHY[run.verdict]}</Reading.Section>
                 <Reading.Section heading="What you can do">{VERDICT_ACTION[run.verdict]}</Reading.Section>
               </>
+            ) : null}
+            {jobLog ? (
+              <Reading.Section heading="Log">
+                <JobLogView key={run.jobId} environmentId={environmentId} repo={run.repo} jobId={run.jobId} />
+              </Reading.Section>
             ) : null}
             {settled && thread.view.items.length === 0 && thread.permitted && thread.provider?.available ? (
               <Reading.Actions>

@@ -48,6 +48,14 @@ export const jobResourcesAtom = Atom.family(({ environmentId, repo, jobId }: Job
   }).pipe(Atom.setIdleTTL(KEPT)),
 );
 
+// One job's log from GitHub, asked once, when the run page opens it, on a server that can read it.
+export const jobLogAtom = Atom.family(({ environmentId, repo, jobId }: Job) =>
+  Atom.make((get) => {
+    const connection = get(connectedAtom(environmentId));
+    return connection === null || !get(capabilitiesAtom(environmentId)).jobLog ? Effect.never : connection.client["history.jobLog"]({ repo, jobId });
+  }).pipe(Atom.setIdleTTL(KEPT)),
+);
+
 type Totals = { readonly environmentId: string; readonly days: number; readonly repo: string | null };
 
 // A machine's jobs, time and reviews each day over the last `days`, for one repository or all of

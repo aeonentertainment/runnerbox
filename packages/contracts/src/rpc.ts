@@ -1,3 +1,4 @@
+import { JobLog, JobLogError } from "./jobLog.ts";
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
@@ -75,6 +76,7 @@ export const RPC_METHODS = {
   historyRuns: "history.runs",
   historyWeeklySummary: "history.weeklySummary",
   historyJobResources: "history.jobResources",
+  historyJobLog: "history.jobLog",
   historyKindUsage: "history.kindUsage",
   historyJobTrends: "history.jobTrends",
   historyDailyTotals: "history.dailyTotals",
@@ -176,6 +178,8 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   }),
   // One job attempt's steps, memory and CPU, and a sentence about them. Fails with a
   // StateReadError when the repo's log has no job with that ID.
+  // A job's log from GitHub, read through the server's sign-in now; nothing of it is kept.
+  Rpc.make(RPC_METHODS.historyJobLog, { payload: { repo: RepoName, jobId: Schema.Int.check(Schema.isGreaterThan(0)) }, success: JobLog, error: Schema.Union([AuthorizationError, JobLogError]) }),
   Rpc.make(RPC_METHODS.historyJobResources, {
     payload: { repo: RepoName, jobId: Schema.Int },
     success: JobResources,
@@ -390,6 +394,7 @@ export const RPC_SCOPES = {
   [RPC_METHODS.historyWeeklySummary]: HISTORY,
   // It reads the job's container readings and its runner's events alongside the job.
   [RPC_METHODS.historyJobResources]: ["history:read", "runners:read"],
+  [RPC_METHODS.historyJobLog]: HISTORY,
   [RPC_METHODS.historyKindUsage]: ["history:read", "runners:read"],
   [RPC_METHODS.historyJobTrends]: HISTORY,
   // Reviews are already read with `history:read` (reviews.read), so their totals take the same
