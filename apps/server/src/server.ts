@@ -1,3 +1,4 @@
+import * as Alerts from "./alerts/Alerts.ts";
 import { createServer } from "node:http";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -91,7 +92,7 @@ type ServicesInput = {
 
 // Every service, shared by the RPC socket and MCP. Built outside `HttpRouter.serve` so all routes
 // see the same instances.
-export const layerServices = (input: ServicesInput) => Layer.mergeAll(Monitors.layer, ReviewWatch.layer, RuleFixes.layer).pipe(Layer.provideMerge(layerCore(input)));
+export const layerServices = (input: ServicesInput) => Layer.mergeAll(Monitors.layer, ReviewWatch.layer, RuleFixes.layer, Alerts.layer).pipe(Layer.provideMerge(layerCore(input)));
 
 // Everything but the monitor, which sits on top so a test can run it on a fake clock.
 export const layerCore = (input: ServicesInput) =>

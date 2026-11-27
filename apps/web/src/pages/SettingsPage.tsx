@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Bell, Eye, Palette, GitBranch, GitPullRequest, Info, KeyRound, Plug, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { Bell, BellRing, Eye, Palette, GitBranch, GitPullRequest, Info, KeyRound, Plug, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { PaletteButton } from "../components/PaletteButton.tsx";
 import { handleSettingsSectionKeyDown } from "../components/settings/settingsSectionNavigation.ts";
 import { SidebarContent, SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../components/ui/sidebar.tsx";
@@ -19,6 +19,7 @@ const GROUPS = [
   {
     heading: "CI",
     sections: [
+      { to: "/settings/alerts", label: "Alerts", icon: BellRing },
       { to: "/settings/monitors", label: "Monitors", icon: Eye },
       { to: "/settings/changes", label: "Changes", icon: SlidersHorizontal },
     ],

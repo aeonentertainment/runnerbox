@@ -10,6 +10,7 @@ import { RunnersPage } from "./pages/RunnersPage.tsx";
 import { RunPage } from "./pages/RunPage.tsx";
 import { RunsPage } from "./pages/RunsPage.tsx";
 import { SettingsPage } from "./pages/SettingsPage.tsx";
+import { AlertsSettings } from "./pages/settings/AlertsSettings.tsx";
 import { AppearanceSettings } from "./pages/settings/AppearanceSettings.tsx";
 import { AboutSettings } from "./pages/settings/AboutSettings.tsx";
 import { AccessSettings } from "./pages/settings/AccessSettings.tsx";
@@ -60,6 +61,7 @@ const routeTree = rootRoute.addChildren([
     createRoute({ getParentRoute: () => settingsRoute, path: "/access", component: AccessSettings }),
     createRoute({ getParentRoute: () => settingsRoute, path: "/changes", component: ChangesSettings }),
     createRoute({ getParentRoute: () => settingsRoute, path: "/monitors", component: MonitorsSettings }),
+    createRoute({ getParentRoute: () => settingsRoute, path: "/alerts", component: AlertsSettings }),
     createRoute({ getParentRoute: () => settingsRoute, path: "/reviews", component: ReviewsSettings }),
     createRoute({ getParentRoute: () => settingsRoute, path: "/notifications", component: NotificationsSettings }),
     createRoute({ getParentRoute: () => settingsRoute, path: "/appearance", component: AppearanceSettings }),

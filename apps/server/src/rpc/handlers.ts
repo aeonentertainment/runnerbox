@@ -1,4 +1,5 @@
 import { RPC_METHODS, RPC_SCOPES, RunnerboxRpcGroup, StateReadError, type TurnRequest } from "@runnerbox/contracts";
+import * as Alerts from "../alerts/Alerts.ts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Session } from "../auth/AuthStore.ts";
@@ -66,6 +67,8 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
       const reruns = yield* Reruns.Reruns;
       const reviewRuns = yield* ReviewRuns.ReviewRuns;
       const reviewWatch = yield* ReviewWatch.ReviewWatch;
+      const alerts = yield* Alerts.Alerts;
+      const mayAlert = { configure: RPC_SCOPES[RPC_METHODS.alertsSetRules].every((scope) => session.scopes.includes(scope)) };
       // The same scopes the server checks on reviews.setRepo and reviews.start, so a switch or a button is never offered when it would be refused.
       const mayReview = {
         configure: RPC_SCOPES[RPC_METHODS.reviewsSetRepo].every((scope) => session.scopes.includes(scope)),
@@ -141,6 +144,8 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
         "proposals.approve": ({ id, hash, when }) => proposals.approve(id, hash, when, approver),
         "proposals.decline": ({ id }) => proposals.decline(id, approver),
         "proposals.revert": ({ id }) => proposals.revert(id, approver),
+        "alerts.status": () => alerts.status(mayAlert),
+        "alerts.setRules": ({ rules }) => alerts.setRules(rules, mayAlert),
         "monitors.status": () => monitors.status(canConfigureMonitors),
         "monitors.save": (settings) => monitors.save(settings),
         "monitors.markRead": ({ itemId }) => monitors.markRead(itemId),

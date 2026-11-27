@@ -57,9 +57,11 @@ export type Capabilities = {
   readonly reviewMemory: boolean;
   // `history.rerunJob`: running a job again on GitHub.
   readonly rerun: boolean;
+  // `alerts.status`: the owner's alert rules and what they fired.
+  readonly alerts: boolean;
 };
 
-export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false, reviewPosting: false, reviewRules: false, reviewInsights: false, jobLog: false, reviewMemory: false, rerun: false };
+export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false, reviewPosting: false, reviewRules: false, reviewInsights: false, jobLog: false, reviewMemory: false, rerun: false, alerts: false };
 
 export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilities {
   if (methods === null) return NO_CAPABILITIES;
@@ -94,5 +96,6 @@ export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilit
     jobLog: has(RPC_METHODS.historyJobLog),
     reviewMemory: has(RPC_METHODS.reviewsMemory),
     rerun: has(RPC_METHODS.historyRerunJob),
+    alerts: has(RPC_METHODS.alertsStatus),
   };
 }
