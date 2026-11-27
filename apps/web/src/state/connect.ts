@@ -17,3 +17,11 @@ export const linkedEnvironmentsAtom = Atom.make((get) => {
   const status = get(connectStatusAtom);
   return connect === undefined || status._tag !== "Success" || !status.value.signedIn ? Effect.never : Effect.tryPromise(() => connect.environments());
 });
+
+// Where the signed-in account's alerts go beyond the app, asked again with every new sign-in status.
+export const alertDestinationsAtom = Atom.make((get) => {
+  const connect = runtime.connect;
+  const status = get(connectStatusAtom);
+  const ask = connect?.alertDestinations;
+  return ask === undefined || status._tag !== "Success" || !status.value.signedIn ? Effect.never : Effect.tryPromise(() => ask());
+});

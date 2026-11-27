@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { useState } from "react";
 import { AlertLink } from "../../components/AlertLink.tsx";
 import { AddAlertRule } from "../../components/settings/AddAlertRule.tsx";
+import { SlackDestination } from "../../components/settings/SlackDestination.tsx";
 import { SettingsIntro } from "../../components/settings/SettingsIntro.tsx";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "../../components/settings/settingsLayout.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -22,7 +23,7 @@ export function AlertsSettings() {
   };
   return (
     <SettingsPageContainer>
-      <SettingsIntro>The server checks these every minute, against jobs as they finish and reviews as they end. A fired alert shows under Notifications, and is kept here.</SettingsIntro>
+      <SettingsIntro>The server checks these every minute, against jobs as they finish and reviews as they end. A fired alert shows under Notifications, is kept here, and goes to Slack when you connect it below.</SettingsIntro>
       <SettingsSection title="Rules">
         {view.rules.map((rule) => (
           <SettingsRow
@@ -43,6 +44,9 @@ export function AlertsSettings() {
         {view.rules.length === 0 ? <SettingsRow title={<span className="font-normal text-muted-foreground">No rules yet.</span>} /> : null}
         {view.canConfigure ? <AddAlertRule onAdd={(rule) => save([...view.rules, rule])} /> : null}
         {error ? <p className="px-3 pb-3 text-destructive text-xs sm:px-4">{error}</p> : null}
+      </SettingsSection>
+      <SettingsSection title="Also send to">
+        <SlackDestination />
       </SettingsSection>
       <SettingsSection title="Fired recently">
         {view.fired.length === 0 ? <SettingsRow title={<span className="font-normal text-muted-foreground">Nothing yet.</span>} /> : null}

@@ -118,6 +118,18 @@ function registerIpc() {
     fromApp(event);
     return connect.signOut();
   });
+  ipcMain.handle(CHANNELS.connectAlertDestinations, (event) => {
+    fromApp(event);
+    return connect.alertDestinations();
+  });
+  ipcMain.handle(CHANNELS.connectSlack, (event) => {
+    fromApp(event);
+    return connect.connectSlack();
+  });
+  ipcMain.handle(CHANNELS.connectDisconnectSlack, (event) => {
+    fromApp(event);
+    return connect.disconnectSlack();
+  });
   ipcMain.handle(CHANNELS.connectEnvironments, (event) => {
     fromApp(event);
     return connect.environments();

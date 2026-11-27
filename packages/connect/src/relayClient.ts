@@ -1,4 +1,4 @@
-import { ConnectResponse, LinkChallengeResponse, LinkedEnvironment, LinkResponse, RecoveryResponse, RelayConfig, ReplaceResponse, StatusResponse } from "@runnerbox/contracts";
+import { AlertDestinations, ConnectResponse, LinkChallengeResponse, LinkedEnvironment, LinkResponse, RecoveryResponse, RelayConfig, ReplaceResponse, StatusResponse } from "@runnerbox/contracts";
 import * as Schema from "effect/Schema";
 
 // Calls a Runnerbox Connect relay. Every call that acts for a user carries their Clerk token;
@@ -47,6 +47,11 @@ export const relayClient = (relayUrl: string) => ({
   replaceTunnel: (proof: string) => call(relayUrl, "/v1/recovery/replace", ReplaceResponse, { method: "POST", body: { proof } }),
   unlink: (proof: string) => call(relayUrl, "/v1/unlink", Schema.Struct({ ok: Schema.Boolean }), { method: "POST", body: { proof } }),
   environments: (token: string) => call(relayUrl, "/v1/environments", Schema.Array(LinkedEnvironment), { token }),
+  alertDestinations: (token: string) => call(relayUrl, "/v1/alerts/destinations", AlertDestinations, { token }),
+  connectSlack: (token: string) => call(relayUrl, "/v1/alerts/slack/connect", Schema.Struct({ url: Schema.String }), { method: "POST", token }),
+  disconnectSlack: (token: string) => call(relayUrl, "/v1/alerts/slack", Schema.Struct({ ok: Schema.Boolean }), { method: "DELETE", token }),
+  // Signed by the environment's key, like unlinking, so a headless machine sends its own alerts.
+  notify: (proof: string) => call(relayUrl, "/v1/alerts/notify", Schema.Struct({ sent: Schema.Boolean, reason: Schema.optionalKey(Schema.String) }), { method: "POST", body: { proof } }),
   connect: (token: string, environmentId: string, clientProofKeyThumbprint: string) =>
     call(relayUrl, `/v1/environments/${encodeURIComponent(environmentId)}/connect`, ConnectResponse, { method: "POST", token, body: { clientProofKeyThumbprint } }),
   status: (token: string, environmentId: string) => call(relayUrl, `/v1/environments/${encodeURIComponent(environmentId)}/status`, StatusResponse, { token }),

@@ -1,4 +1,4 @@
-import { AuthScope, type ConnectResponse, type LinkedEnvironment } from "@runnerbox/contracts";
+import { type AlertDestinations, AuthScope, type ConnectResponse, type LinkedEnvironment } from "@runnerbox/contracts";
 import * as Schema from "effect/Schema";
 import type { UpdateChannel, UpdateState } from "./updates.ts";
 
@@ -76,6 +76,11 @@ export interface ClientPlatform {
     readonly signIn: (relayUrl: string) => Promise<void>;
     readonly signOut: () => Promise<void>;
     readonly environments: () => Promise<ReadonlyArray<LinkedEnvironment>>;
+    // Where the account's alerts go beyond the app, and connecting or leaving Slack, whose install
+    // screen opens in the browser.
+    readonly alertDestinations?: () => Promise<AlertDestinations>;
+    readonly connectSlack?: () => Promise<void>;
+    readonly disconnectSlack?: () => Promise<void>;
     // Asks the relay for a one-time credential bound to the key with this thumbprint.
     readonly requestCredential: (environmentId: string, clientProofKeyThumbprint: string) => Promise<ConnectResponse>;
     // A new proof key, kept by the platform, and DPoP proofs signed with it. The desktop app keeps

@@ -340,6 +340,17 @@ test("an enabled sweep reclaims an idle tunnel, and the host gets a new one unde
   assert.equal(granted.httpBaseUrl, server.tunnelBaseUrl, "clients keep the same address");
 });
 
+test("a linked environment's alert reaches the relay signed with its own key, and goes nowhere without a destination", async () => {
+  // This relay has no Slack app, so the alert is accepted and kept in the app.
+  assert.equal(await Effect.runPromise(server.cloudLink.notify({ kind: "job_failed", title: "ci / test failed on main" })), false);
+  // The same request signed by another key is refused.
+  const other = await generateSigningKeyPair();
+  const at = Math.floor(Date.now() / 1000);
+  const id = await environmentId();
+  const forged = await signJwt({ privateKey: other.privateKey, typ: CONNECT_TYP.notify, payload: { iss: environmentAudience(id), aud: relayConfig.issuer, sub: id, jti: crypto.randomUUID(), iat: at, exp: at + 60, environmentId: id, cloudUserId: "user_alice", alert: { kind: "job_failed", title: "forged" } } });
+  assert.equal(await refusal(client().notify(forged)), "notify_proof_invalid");
+});
+
 test("unlinking with the environment's key removes the link and its tunnel", async () => {
   const id = await environmentId();
   const tunnelId = (await store.allocation({ userId: "user_alice", environmentId: id }))!.tunnel_id;
@@ -350,3 +361,4 @@ test("unlinking with the environment's key removes the link and its tunnel", asy
   assert.equal(await refusal(client().connect("token-alice", id, key.thumbprint)), "environment_link_not_found");
   assert.equal(await Effect.runPromise(server.cloudLink.state), null);
 });
+
