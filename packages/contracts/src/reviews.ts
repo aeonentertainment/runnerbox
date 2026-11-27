@@ -28,9 +28,10 @@ export const ReviewRules = Schema.Struct({
   instructions: Schema.String.check(Schema.isMaxLength(2000)),
   // Rules added later fill in their default, so settings saved before them still read.
   inline: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(true))),
+  status: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(true))),
 });
 export type ReviewRules = typeof ReviewRules.Type;
-export const DEFAULT_REVIEW_RULES: ReviewRules = { onPush: true, drafts: false, skipAuthors: [], skipTitles: [], skipLabels: [], ignoreFiles: [], strictness: "medium", instructions: "", inline: true };
+export const DEFAULT_REVIEW_RULES: ReviewRules = { onPush: true, drafts: false, skipAuthors: [], skipTitles: [], skipLabels: [], ignoreFiles: [], strictness: "medium", instructions: "", inline: true, status: true };
 // A pattern list as clients edit it: one line, comma separated.
 export const patternsText = (patterns: ReadonlyArray<string>) => patterns.join(", ");
 export const patternsFromText = (text: string) => [...new Set(text.split(",").map((part) => part.trim().slice(0, 200)).filter((part) => part !== ""))].slice(0, 50);
@@ -97,6 +98,8 @@ export const Review = Schema.Struct({
   // The findings it left on their lines, by priority, path and title, so a later review of the
   // same pull request doesn't leave the same one again.
   postedInline: Schema.optionalKey(Schema.Array(Schema.String)),
+  // Why its status check couldn't be set on the reviewed commit, when posting is on.
+  statusProblem: Schema.optionalKey(Schema.String),
   // Why it couldn't be posted, when posting is on and GitHub didn't take it.
   commentProblem: Schema.optionalKey(Schema.String),
 });
