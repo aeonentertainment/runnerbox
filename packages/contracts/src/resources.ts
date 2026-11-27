@@ -24,7 +24,8 @@ export type PlacedStep = typeof PlacedStep.Type;
 export const ResourcePoint = Schema.Struct({ offsetMs: Schema.Number, memMiB: Schema.Number, cpuPercent: Schema.Number });
 export type ResourcePoint = typeof ResourcePoint.Type;
 
-export const VmPoint = Schema.Struct({ offsetMs: Schema.Number, availableMiB: Schema.Number, totalMiB: Schema.Number });
+// The VM's disk is left out by a sample from before disk was read.
+export const VmPoint = Schema.Struct({ offsetMs: Schema.Number, availableMiB: Schema.Number, totalMiB: Schema.Number, diskUsedMiB: Schema.optionalKey(Schema.Number), diskTotalMiB: Schema.optionalKey(Schema.Number) });
 export type VmPoint = typeof VmPoint.Type;
 
 // One plain sentence about what the readings show, by rules on the server. `step` is named only

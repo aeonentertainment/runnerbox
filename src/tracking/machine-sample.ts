@@ -16,6 +16,15 @@ export function parseMeminfo(text: string) {
   return { totalMiB: Math.round(total), availableMiB: Math.round(available), swapUsedMiB: Math.round(swapTotal - swapFree) };
 }
 
+// `df -Pk <path>`: a header, then one line whose second and third fields are the filesystem's size
+// and what's used, in KiB.
+export function parseDf(text: string) {
+  const fields = text.trim().split("\n").at(-1)?.trim().split(/\s+/) ?? [];
+  const [total, used] = [fields[1], fields[2]].map(Number);
+  if (fields.length < 6 || total === undefined || used === undefined || !Number.isFinite(total) || !Number.isFinite(used) || total <= 0) return;
+  return { diskTotalMiB: Math.round(total / 1024), diskUsedMiB: Math.round(used / 1024) };
+}
+
 export function parseLoad1(loadavg: string) {
   const load = Number(loadavg.split(" ")[0]);
   return Number.isFinite(load) ? load : undefined;

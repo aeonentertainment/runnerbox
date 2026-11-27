@@ -3,20 +3,23 @@ import {
   type CpuCounters,
   parseContainer,
   parseCpuCounters,
+  parseDf,
   parseLoad1,
   parseMeminfo,
 } from "./machine-sample.ts";
 import type { Machine, Sample } from "./sample-record.ts";
 
-// One SSH call reads everything from the VM. `docker stats` covers every container in the VM, so
+// One SSH call reads everything from the VM. Disk is Docker's own filesystem when it has one apart
+// from the root, since that's what fills up with images and build caches. `docker stats` covers every container in the VM, so
 // another launcher's jobs show up too and the two can be compared. It has its own timeout, well
 // inside readFromVm's, so a daemon slowed by swapping costs only the containers section.
 export const VM_SAMPLE_COMMAND =
   "echo @@meminfo; cat /proc/meminfo; echo @@loadavg; cat /proc/loadavg; echo @@stat; head -1 /proc/stat; " +
+  "echo @@df; df -Pk /var/lib/docker 2>/dev/null || df -Pk / 2>/dev/null; " +
   "if containers=$(timeout 10 docker stats --no-stream --format '{{json .}}' 2>/dev/null); then " +
   "echo @@containers; printf '%s\\n' \"$containers\"; fi; true";
 
-export type MachineText = { meminfo: string; loadavg: string; stat: string };
+export type MachineText = { meminfo: string; loadavg: string; stat: string; df?: string };
 
 type SamplerActions = {
   readHost: () => Promise<MachineText>;
@@ -47,7 +50,8 @@ export function createSampler({ readHost, readVm, append, now }: SamplerActions)
     const counters = parseCpuCounters(text.stat ?? "");
     const busy = counters && busyPercent(previous[which], counters);
     if (counters) previous[which] = counters;
-    return busy === undefined ? { ...memory, load1 } : { ...memory, load1, cpuBusyPercent: busy };
+    const disk = parseDf(text.df ?? "");
+    return { ...memory, load1, ...(busy === undefined ? {} : { cpuBusyPercent: busy }), ...disk };
   }
 
   return async function sample() {

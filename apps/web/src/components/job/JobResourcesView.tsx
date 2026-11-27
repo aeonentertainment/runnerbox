@@ -12,6 +12,34 @@ const cpus = (percent: number) => {
   return `${count} ${count === 1 ? "CPU" : "CPUs"}`;
 };
 
+// The VM's disk while the job ran, from the minute samples: a graph once there are two, a sentence
+// for one, nothing from a launcher too old to read disk.
+function VmDisk({ resources, durationMs, describe }: { resources: JobResources; durationMs: number; describe: (offsetMs: number) => string }) {
+  const disk = resources.vm.flatMap((point) => (point.diskUsedMiB === undefined || point.diskTotalMiB === undefined ? [] : [{ offsetMs: point.offsetMs, used: point.diskUsedMiB, total: point.diskTotalMiB }]));
+  const last = disk.at(-1);
+  if (last === undefined) return null;
+  const share = `${Math.round((last.used / last.total) * 100)}% full`;
+  if (disk.length < 2) return <p className="text-muted-foreground">The VM's disk was {share}, {formatMiB(last.used)} of {formatMiB(last.total)}.</p>;
+  return (
+    <section className="flex flex-col gap-1.5">
+      <h3 className="font-medium">
+        Disk on the VM <span className="font-normal text-muted-foreground">{share} at the end, of {formatMiB(last.total)}</span>
+      </h3>
+      <ResourceChart
+        label="Disk used on the VM over the job's run"
+        points={disk.map((point) => ({ offsetMs: point.offsetMs, value: point.used }))}
+        durationMs={durationMs}
+        max={last.total * HEADROOM}
+        ticks={[0, last.total / 2, last.total]}
+        limit={{ value: last.total, label: `size ${formatMiB(last.total)}` }}
+        mark={null}
+        format={formatMiB}
+        describe={describe}
+      />
+    </section>
+  );
+}
+
 // One job's steps, its container's memory and CPU as two graphs with one axis each, and the
 // server's sentence about them, unless the page shows that sentence as its Why instead. Used on a
 // run's page and in Speed and cost's job panel.
@@ -72,6 +100,7 @@ export function JobResourcesView({ resources, sentenceShown = true, markedStep }
           </section>
         </div>
       ) : null}
+      <VmDisk resources={resources} durationMs={durationMs} describe={describe} />
       {sentence && sentenceShown ? <p className="text-foreground/90">{sentence.text}</p> : null}
     </div>
   );
