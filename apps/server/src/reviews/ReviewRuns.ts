@@ -262,7 +262,7 @@ const make = Effect.gen(function* () {
       // The prompt already asks for P1s only; a P2 the reviewer reports anyway is still left out.
       const asked = rules.strictness === "high" ? submitted.findings.filter((finding) => finding.priority === "P1") : submitted.findings;
       const findings = yield* Effect.forEach(asked, (finding) => excerpt(reading, finding));
-      yield* keep(run, { state: "done", finishedAt: yield* nowIso, costUsd, filesRead: reading.opened.size, score: submitted.score, impact: submitted.impact, reach: submitted.reach, verdict: submitted.verdict, findings });
+      yield* keep(run, { state: "done", finishedAt: yield* nowIso, costUsd, filesRead: reading.opened.size, score: submitted.score, impact: submitted.impact, reach: submitted.reach, verdict: submitted.verdict, findings, ...(submitted.summary ? { summary: submitted.summary } : {}), ...(submitted.flow && submitted.flow.length > 0 ? { flow: submitted.flow } : {}) });
       // After the review is kept as done, so a comment that can't be posted doesn't cost the review.
       // Uninterruptible, so a stop or the time limit can't land between GitHub taking the comment
       // and its ID being kept, which would leave a second comment for the next review to make.

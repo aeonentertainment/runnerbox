@@ -52,6 +52,8 @@ The review as a whole
 - impact: how much breaks if this change is wrong, whatever you found: low, medium, high or critical.
 - reach: one sentence saying what the change touches.
 - verdict: one sentence saying what to do before merging, or that it is safe to merge.
+- summary: two or three plain sentences saying what the change does for someone who hasn't read it, not how the code is written.
+- flow: when the change sends something between parts of the system (a page and a server, a service and a queue, a client and GitHub), up to eight steps in order, each a part, the part it reaches, and what it sends, in a few words: { from: "Job page", to: "Server", says: "rerun request" }. Name parts as a reader would, not by file. Leave it out when nothing flows, such as a change to one function or to docs.
 - score: 5 safe to merge with no findings. 4 safe to merge, with P2 fixes worth making. 3 fix a P1 before merging. 2 several P1s or a design that won't hold. 1 should not merge.`;
 
 const STRICTNESS = {
