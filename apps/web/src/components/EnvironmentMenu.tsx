@@ -14,9 +14,8 @@ import { Menu, MenuGroup, MenuGroupLabel, MenuItem, MenuPopup, MenuTrigger } fro
 import { SidebarMenuButton, useSidebar } from "./ui/sidebar.tsx";
 import { UserAvatar } from "./UserAvatar.tsx";
 
-// The sidebar's bottom row, as in Codex: the account's avatar beside the environment this window
-// shows and how it's connected, with the other environments a click away. In the rail only the
-// avatar stays.
+// The rail's top: the account's avatar, opening the environment this window shows and how it's
+// connected, with the other environments a click away.
 export function EnvironmentMenu() {
   const { environment, connection } = useActiveEnvironment();
   const environments = useStore(runtime.store, (state) => state.environments);

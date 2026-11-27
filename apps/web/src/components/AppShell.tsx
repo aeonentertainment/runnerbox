@@ -18,15 +18,15 @@ import { SidebarInset, SidebarProvider } from "./ui/sidebar.tsx";
 import { ToastProvider } from "./ui/toast.tsx";
 import { TooltipProvider } from "./ui/tooltip.tsx";
 
-// T3 Code's layout: a sidebar of pages that narrows to a rail, and the open page in the main column,
-// which draws its own bar.
+// T3 Code's layout, with its sidebar held at the rail: the products on the left, and the open page in
+// the main column, which draws its own bar with the product's pages as tabs.
 export function AppShell() {
   const loaded = useStore(runtime.store, (state) => state.loaded);
   const { environment } = useActiveEnvironment();
   const path = useRouterState({ select: (state) => state.location.pathname });
   const [commandOpen, setCommandOpen] = useAtom(commandPaletteOpenAtom);
-  // As T3 Code's AppSidebarLayout: the sidebar eases open and shut, except under reduced motion
-  // and for the two frames after a route change, so a new page never animates in.
+  // As T3 Code's AppSidebarLayout: panels ease open and shut, except under reduced motion and for
+  // the two frames after a route change, so a new page never animates in.
   const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } = usePanelAnimationSettings();
   const panelAnimationsSuppressed = usePanelNavigationSuppression(path);
   useNeedsYouNotifications();
@@ -54,7 +54,7 @@ export function AppShell() {
           <SidebarProvider
             className="h-svh"
             data-panel-animations={panelAnimationsActive && !panelAnimationsSuppressed ? "true" : "false"}
-            storageKey="runnerbox_sidebar_open"
+            defaultOpen={false}
             style={{ "--panel-animation-duration": `${panelAnimationDurationMs}ms` } as CSSProperties}
           >
             <AppSidebar />
