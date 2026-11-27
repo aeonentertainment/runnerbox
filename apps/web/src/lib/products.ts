@@ -3,7 +3,7 @@ import { Activity, GitPullRequest } from "lucide-react";
 // The app is two products in one window. The open page says which one is showing.
 export type Product = "ci" | "review";
 
-type PagePath = "/" | "/runs" | "/speed" | "/runners" | "/pulls" | "/insights" | "/memory";
+type PagePath = "/" | "/runs" | "/flaky" | "/speed" | "/runners" | "/pulls" | "/insights" | "/memory";
 
 // Each product's pages, in tab order. The first is where the product opens.
 export const PRODUCTS = {
@@ -13,6 +13,7 @@ export const PRODUCTS = {
     pages: [
       { to: "/", label: "Overview" },
       { to: "/runs", label: "Runs" },
+      { to: "/flaky", label: "Flaky tests" },
       { to: "/speed", label: "Speed and cost" },
       { to: "/runners", label: "Runners" },
     ],

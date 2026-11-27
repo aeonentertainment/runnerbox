@@ -1,3 +1,4 @@
+import { FlakyTests } from "./flakyTests.ts";
 import { AlertRule, AlertsError, AlertsView } from "./alerts.ts";
 import { RerunError } from "./jobRerun.ts";
 import { JobLog, JobLogError } from "./jobLog.ts";
@@ -79,6 +80,7 @@ export const RPC_METHODS = {
   historyWeeklySummary: "history.weeklySummary",
   historyJobResources: "history.jobResources",
   historyJobLog: "history.jobLog",
+  historyFlakyTests: "history.flakyTests",
   historyRerunJob: "history.rerunJob",
   historyKindUsage: "history.kindUsage",
   historyJobTrends: "history.jobTrends",
@@ -190,6 +192,8 @@ export const RunnerboxRpcGroup = RpcGroup.make(
   // Asks GitHub to run one job again, through the server's sign-in. It runs on whatever runners
   // the job's labels pick, as any rerun on GitHub would.
   Rpc.make(RPC_METHODS.historyRerunJob, { payload: { repo: RepoName, jobId: Schema.Int.check(Schema.isGreaterThan(0)) }, success: Schema.Struct({}), error: Schema.Union([AuthorizationError, RerunError]) }),
+  // Tests that failed and then passed when retried, read from the failed attempts' logs on GitHub.
+  Rpc.make(RPC_METHODS.historyFlakyTests, { payload: { days: Days }, success: FlakyTests, error: ReadError }),
   Rpc.make(RPC_METHODS.historyJobLog, { payload: { repo: RepoName, jobId: Schema.Int.check(Schema.isGreaterThan(0)) }, success: JobLog, error: Schema.Union([AuthorizationError, JobLogError]) }),
   Rpc.make(RPC_METHODS.historyJobResources, {
     payload: { repo: RepoName, jobId: Schema.Int },
@@ -412,6 +416,7 @@ export const RPC_SCOPES = {
   // It reads the job's container readings and its runner's events alongside the job.
   [RPC_METHODS.historyJobResources]: ["history:read", "runners:read"],
   [RPC_METHODS.historyJobLog]: HISTORY,
+  [RPC_METHODS.historyFlakyTests]: HISTORY,
   // Starts work on the owner's runners and Actions minutes, under their GitHub name.
   [RPC_METHODS.historyRerunJob]: ACCESS,
   [RPC_METHODS.historyKindUsage]: ["history:read", "runners:read"],

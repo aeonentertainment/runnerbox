@@ -1,6 +1,7 @@
 import { createHashHistory, createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 import { AppShell } from "./components/AppShell.tsx";
 import { parseSearch } from "./lib/search.ts";
+import { FlakyTestsPage } from "./pages/FlakyTestsPage.tsx";
 import { MemoryPage } from "./pages/MemoryPage.tsx";
 import { NotificationPage } from "./pages/NotificationPage.tsx";
 import { OverviewPage } from "./pages/OverviewPage.tsx";
@@ -50,6 +51,7 @@ const routeTree = rootRoute.addChildren([
   createRoute({ getParentRoute: () => rootRoute, path: "/insights", component: ReviewInsightsPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/memory", component: MemoryPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/speed", component: SpeedPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/flaky", component: FlakyTestsPage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/runners", component: RunnersPage }),
   settingsRoute.addChildren([
     createRoute({ getParentRoute: () => settingsRoute, path: "/", beforeLoad: () => { throw redirect({ to: "/settings/providers", search: true }); } }),

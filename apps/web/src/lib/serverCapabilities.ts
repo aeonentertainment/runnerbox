@@ -59,9 +59,11 @@ export type Capabilities = {
   readonly rerun: boolean;
   // `alerts.status`: the owner's alert rules and what they fired.
   readonly alerts: boolean;
+  // `history.flakyTests`: tests that failed and then passed when retried.
+  readonly flakyTests: boolean;
 };
 
-export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false, reviewPosting: false, reviewRules: false, reviewInsights: false, jobLog: false, reviewMemory: false, rerun: false, alerts: false };
+export const NO_CAPABILITIES: Capabilities = { models: false, attachments: false, references: false, queue: false, deleteThread: false, providers: false, jobResources: false, waitingJobs: false, serverUpdate: false, speed: false, checkRelease: false, restartRunners: false, reviews: false, reviewRuns: false, github: false, moveCi: false, moveCiSwitch: false, whereRan: false, moveCiPush: false, reviewsPush: false, githubPush: false, chat: false, reviewBot: false, reviewPosting: false, reviewRules: false, reviewInsights: false, jobLog: false, reviewMemory: false, rerun: false, alerts: false, flakyTests: false };
 
 export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilities {
   if (methods === null) return NO_CAPABILITIES;
@@ -94,6 +96,7 @@ export function capabilitiesOf(methods: ReadonlyArray<string> | null): Capabilit
     reviewRules: has(RPC_METHODS.reviewsSetRules),
     reviewInsights: has(RPC_METHODS.reviewsInsights),
     jobLog: has(RPC_METHODS.historyJobLog),
+    flakyTests: has(RPC_METHODS.historyFlakyTests),
     reviewMemory: has(RPC_METHODS.reviewsMemory),
     rerun: has(RPC_METHODS.historyRerunJob),
     alerts: has(RPC_METHODS.alertsStatus),

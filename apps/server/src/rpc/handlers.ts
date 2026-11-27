@@ -6,6 +6,7 @@ import type { Session } from "../auth/AuthStore.ts";
 import * as AuthStore from "../auth/AuthStore.ts";
 import * as DailyTotals from "../history/DailyTotals.ts";
 import * as Reruns from "../reruns/Reruns.ts";
+import * as FlakyTests from "../flaky/FlakyTests.ts";
 import * as JobLogs from "../jobLogs/JobLogs.ts";
 import * as JobHistory from "../history/JobHistory.ts";
 import type { LogReadError } from "../history/StateLogs.ts";
@@ -65,6 +66,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
       const memory = yield* ReviewMemory.ReviewMemory;
       const jobLogs = yield* JobLogs.JobLogs;
       const reruns = yield* Reruns.Reruns;
+      const flakyTests = yield* FlakyTests.FlakyTests;
       const reviewRuns = yield* ReviewRuns.ReviewRuns;
       const reviewWatch = yield* ReviewWatch.ReviewWatch;
       const alerts = yield* Alerts.Alerts;
@@ -101,6 +103,7 @@ export const layer = (session: Session, answered: ReadonlyArray<string> = Object
         "history.dailyTotals": ({ days, repo }) =>
           dailyTotals.days(days, repo).pipe(Effect.mapError((error) => new StateReadError({ what: error._tag === "ReviewError" ? "reviews" : error.what }))),
         "history.jobLog": ({ repo, jobId }) => jobLogs.read(repo, jobId),
+        "history.flakyTests": ({ days }) => flakyTests.list(days).pipe(toWire),
         "history.rerunJob": ({ repo, jobId }) => reruns.rerun(repo, jobId).pipe(Effect.as({})),
         "history.jobResources": (input) =>
           history.jobResources(input).pipe(Effect.mapError((error) => new StateReadError({ what: error._tag === "JobNotFound" ? `job ${error.jobId}` : error.what }))),

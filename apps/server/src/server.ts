@@ -22,6 +22,7 @@ import * as GitHubSignIn from "./github/GitHubSignIn.ts";
 import * as ReviewBot from "./github/ReviewBot.ts";
 import * as DailyTotals from "./history/DailyTotals.ts";
 import * as Reruns from "./reruns/Reruns.ts";
+import * as FlakyTests from "./flaky/FlakyTests.ts";
 import * as JobLogs from "./jobLogs/JobLogs.ts";
 import * as JobHistory from "./history/JobHistory.ts";
 import * as StateLogs from "./history/StateLogs.ts";
@@ -93,7 +94,7 @@ type ServicesInput = {
 
 // Every service, shared by the RPC socket and MCP. Built outside `HttpRouter.serve` so all routes
 // see the same instances.
-export const layerServices = (input: ServicesInput) => Layer.mergeAll(Monitors.layer, ReviewWatch.layer, RuleFixes.layer, AlertDelivery.layer.pipe(Layer.provideMerge(Alerts.layer))).pipe(Layer.provideMerge(layerCore(input)));
+export const layerServices = (input: ServicesInput) => Layer.mergeAll(Monitors.layer, ReviewWatch.layer, RuleFixes.layer, FlakyTests.layer, AlertDelivery.layer.pipe(Layer.provideMerge(Alerts.layer))).pipe(Layer.provideMerge(layerCore(input)));
 
 // Everything but the monitor, which sits on top so a test can run it on a fake clock.
 export const layerCore = (input: ServicesInput) =>
