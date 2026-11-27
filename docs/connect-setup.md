@@ -70,6 +70,43 @@ rm relay-signing.pem                          # or keep it offline; the Worker h
 | `RELAY_SIGNING_PUBLIC_KEY` | `wrangler secret put` (or `[vars]`) | No, but kept with its pair |
 | `CLOUDFLARE_API_TOKEN` | `wrangler secret put` | Yes |
 
+### Alerts to Slack (optional)
+
+Alerts reach Slack only for users signed in to the relay. One Slack app, yours, does every install; the relay keeps each user's channel webhook sealed with `ALERT_SEALING_KEY`, and runnerbox servers ask the relay to post. Without these values the Slack routes answer 404 and alerts stay in the app.
+
+1. At api.slack.com/apps, create an app from this manifest, with your relay's address:
+
+   ```yaml
+   display_information:
+     name: RunnerBox
+   oauth_config:
+     redirect_urls:
+       - https://relay.example.com/v1/alerts/slack/callback
+     scopes:
+       bot:
+         - incoming-webhook
+   settings:
+     event_subscriptions:
+       request_url: https://relay.example.com/v1/alerts/slack/events
+       bot_events:
+         - app_uninstalled
+         - tokens_revoked
+   ```
+
+2. Set its values:
+
+   ```bash
+   # in wrangler.toml [vars]: SLACK_CLIENT_ID = "<Client ID from Basic Information>"
+   wrangler secret put SLACK_CLIENT_SECRET    # Client Secret
+   wrangler secret put SLACK_SIGNING_SECRET   # Signing Secret
+   openssl rand -base64 32 | wrangler secret put ALERT_SEALING_KEY
+   wrangler d1 migrations apply runnerbox-relay --remote
+   ```
+
+   Changing `ALERT_SEALING_KEY` later makes every stored webhook unreadable, so users would connect Slack again.
+
+3. To let other workspaces install it, turn on public distribution under Manage Distribution.
+
 ## 6. Deploy
 
 ```bash

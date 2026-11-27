@@ -14,6 +14,7 @@ export const CONNECT_TYP = {
   healthResponse: "rbx-env-health+jwt",
   recovery: "rbx-env-recovery+jwt",
   replace: "rbx-env-replace+jwt",
+  notify: "rbx-env-notify+jwt",
 } as const;
 
 // A DPoP proof of the client's key, sent when redeeming a Connect credential and with every
@@ -147,3 +148,22 @@ export const StatusResponse = Schema.Struct({
   status: Schema.Literals(["online", "offline"]),
   checkedAt: Schema.NullOr(Schema.String),
 });
+
+// Signed by the environment's key: "tell my linked user this", for the relay to send wherever the
+// user connected, such as a Slack channel. The text is the environment's, and untrusted there.
+export const NotifyProofPayload = Schema.Struct({
+  ...Registered,
+  environmentId: Schema.String,
+  cloudUserId: Schema.String,
+  alert: Schema.Struct({
+    kind: Schema.String.check(Schema.isMaxLength(40)),
+    title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300)),
+  }),
+});
+export type NotifyProofPayload = typeof NotifyProofPayload.Type;
+
+// Where a user's alerts go beyond the app, as the relay tells them. Never the destination's secret.
+export const AlertDestinations = Schema.Struct({
+  slack: Schema.NullOr(Schema.Struct({ team: Schema.String, channel: Schema.String, connectedAt: Schema.String })),
+});
+export type AlertDestinations = typeof AlertDestinations.Type;

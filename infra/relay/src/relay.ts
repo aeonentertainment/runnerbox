@@ -14,6 +14,8 @@ import {
 } from "@runnerbox/contracts";
 import * as Schema from "effect/Schema";
 import { decodeJwt } from "jose";
+import { alertRoutes, type SlackConfig } from "./alerts.ts";
+import { json, Refusal } from "./http.ts";
 import type { IdentityVerifier } from "./identity.ts";
 import { type CleanupMode, sweepIdleTunnels } from "./reaper.ts";
 import type { Link, RelayStore } from "./store.ts";
@@ -40,6 +42,8 @@ export type RelayConfig = {
 
 export type RelayDeps = {
   config: RelayConfig;
+  // Unset until the relay's owner creates the Slack app; the Slack routes then answer 404.
+  slack?: SlackConfig | undefined;
   store: RelayStore;
   identity: IdentityVerifier;
   tunnels: TunnelProvider;
@@ -50,17 +54,6 @@ export type RelayDeps = {
 const CHALLENGE_TYP = "rbx-relay-challenge+jwt";
 const PROOF_SECONDS = 120;
 const ENVIRONMENT_TIMEOUT_MS = 10_000;
-
-class Refusal extends Error {
-  readonly status: number;
-  constructor(status: number, code: string) {
-    super(code);
-    this.status = status;
-  }
-}
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
 const LOOPBACK = new Set(["127.0.0.1", "::1", "localhost"]);
 const decodeLinkProof = Schema.decodeUnknownSync(LinkProofPayload);
@@ -133,6 +126,7 @@ export function createRelay(deps: RelayDeps) {
   }
 
   const routes: Record<string, (request: Request, match: RegExpExecArray) => Promise<Response>> = {
+    ...alertRoutes({ slack: deps.slack, store, issuer, signingPrivateKey: config.signingPrivateKey, signingPublicKey: config.signingPublicKey, userOf, now, fetch: deps.fetch }),
     "GET /v1/config": async () =>
       json({ relayIssuer: issuer, clerkFrontendApi: config.clerkFrontendApi, cliClientId: config.cliClientId, desktopClientId: config.desktopClientId }),
 
