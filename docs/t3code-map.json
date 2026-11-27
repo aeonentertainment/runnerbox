@@ -81,6 +81,8 @@
     "apps/web/src/composer-rich-text.ts": {"relation":"copied"},
     "apps/web/src/composer-text-direction.ts": {"relation":"copied"},
     "apps/web/src/composer-undo-grouping.ts": {"relation":"copied"},
+    "apps/web/src/hooks/useTheme.ts": {"relation":"follows","upstream":"apps/web/src/hooks/useTheme.ts","commit":"99e3d8bb559a7417ede12d5cc110130bef563be6"},
+    "apps/web/src/pages/settings/AppearanceSettings.tsx": {"relation":"follows","upstream":"apps/web/src/components/settings/AppearanceSettingsPanel.tsx","commit":"99e3d8bb559a7417ede12d5cc110130bef563be6"},
     "apps/web/src/hooks/useCommitOnBlur.ts": {"relation":"copied"},
     "apps/web/src/hooks/useLocalStorage.ts": {"relation":"copied"},
     "apps/web/src/hooks/useMediaQuery.ts": {"relation":"copied"},

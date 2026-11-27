@@ -2,8 +2,12 @@
    rules differ from T3 Code's, they win here, one small block each, so a sync of t3code.css stays a
    plain diff. Unlayered, so these beat T3 Code's layered utilities. */
 
-/* Dark only: index.html sets class="dark", and nothing switches it. */
+/* Dark unless the owner picks Light under Settings, Appearance: index.html starts dark, so the first
+   frame matches the default, and useTheme.ts switches the class. */
 html {
+  color-scheme: light;
+}
+html.dark {
   color-scheme: dark;
 }
 
