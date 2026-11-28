@@ -5,6 +5,9 @@ import { SERVER_COMMANDS } from "../apps/server/src/commandNames.ts";
 import { releaseRepository } from "../apps/server/src/update/releaseRepository.ts";
 import { createGitHubClient, REPO_NAME, resolveToken } from "./github/github-client.ts";
 import { renderHost } from "./host/render-host.ts";
+import { checkMachine, isReady } from "./setup/check-machine.ts";
+import { formatSetup } from "./setup/format-setup.ts";
+import { createLocalProbe } from "./setup/probe.ts";
 import { loadLauncherConfig } from "./launcher/launcher-config.ts";
 import { startRunners } from "./launcher/start-runners.ts";
 import { formatStepComparison, formatSummary } from "./tracking/format-report.ts";
@@ -25,6 +28,7 @@ import { loadVmConfig } from "./vm/vm-config.ts";
 
 const USAGE = `Usage:
   runnerbox up --config <file>
+  runnerbox setup check [--json]
   runnerbox vm render --config <file> --out <dir>
   runnerbox host render --config <file> --out <dir>
   runnerbox report --repo <owner/name> [options]
@@ -33,6 +37,7 @@ const USAGE = `Usage:
   runnerbox --version
 
 up: keeps runners waiting for jobs in the VM until stopped.
+setup check: reads whether this machine is ready to host runnerbox's VM, and why not. Changes nothing.
 vm render: writes the VM's cloud-init seed, firewall and a create.sh to run on the host.
 host render: for an install whose jobs run on this Mac's own OS, writes a setup.sh to run with sudo.
 summary: markdown from the local logs alone: the slowest jobs, what \`up\` did, and how close
@@ -69,6 +74,7 @@ async function main() {
       offline: { type: "boolean", default: false },
       by: { type: "string", default: "labels" },
       redact: { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
       version: { type: "boolean", default: false },
     },
@@ -80,6 +86,11 @@ async function main() {
 
   if (positionals[0] === "up" && positionals.length === 1 && values.config) {
     return startRunners(values.config);
+  }
+
+  if (positionals[0] === "setup" && positionals[1] === "check" && positionals.length === 2) {
+    const steps = await checkMachine(createLocalProbe());
+    return console.log(values.json ? JSON.stringify({ ready: isReady(steps), steps }) : formatSetup(steps));
   }
 
   if (positionals[0] === "vm" && positionals[1] === "render" && positionals.length === 2 && values.config && values.out) {

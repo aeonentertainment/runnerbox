@@ -42,6 +42,8 @@ Syncing makes at least one GitHub request per run, so a busy repository can take
 
 Jobs run in containers inside one VM, behind a libvirt network filter. The host needs KVM, libvirt (`qemu-system-x86`, `qemu-utils`, `libvirt-daemon-system`, `virtinst`) and `xorriso`, plus `br_netfilter` loaded with `net.bridge.bridge-nf-call-iptables=1`.
 
+`runnerbox setup check` reads whether an Ubuntu host has all of that and more: KVM, sleep turned off, Wi-Fi power saving, the libvirt groups and storage pool, linger, and unattended updates with a nightly restart. It changes nothing, and names what needs fixing and whether that takes sudo. `--json` prints the same for scripts and the app. Things only a person can change, such as graphics memory reserved in the BIOS or a passphrase at boot, show as notes.
+
 ```bash
 ssh-keygen -t ed25519 -N '' -f ~/.config/runnerbox/vm_key
 node runnerbox.js vm render --config vm.json --out ~/.local/share/runnerbox/vm
