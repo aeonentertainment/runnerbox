@@ -10,8 +10,29 @@ import { StatusDot } from "./StatusDot.tsx";
 
 // No model: the turn runs on the harness's own default.
 const DEFAULT_MODEL = "";
-// Where an owner's own login usually lives, after T3 Code's Codex home setting.
-const DEFAULT_HOME = "~/.codex";
+// Where an owner's own login usually lives, after T3 Code's Codex home and CLAUDE_CONFIG_DIR settings.
+const DEFAULT_HOME: Readonly<Record<string, string>> = { codex: "~/.codex", claude: "~/.claude" };
+// How each driver words its two kinds of sign-in. Codex's is Runnerbox's own home or the owner's;
+// Claude's is the machine's default login or another of the owner's login folders.
+const SIGN_IN = {
+  codex: {
+    own: "Runnerbox's own home",
+    mine: "My Codex login",
+    ownWords: "Runnerbox's own Codex home, signed in with `runnerbox codex-login` on the runner machine.",
+    mineWords:
+      "Your own Codex login, used by pointing Codex at your home. Your MCP servers and hooks there are turned off for these turns and your global AGENTS.md may load but grants nothing. Runnerbox never reads or copies your credentials, and the home must be yours alone to write.",
+    homeTitle: "Codex home",
+  },
+  claude: {
+    own: "This machine's login",
+    mine: "Another login folder",
+    ownWords: "The Claude login on the runner machine, from `claude auth login`.",
+    mineWords:
+      "Another of your Claude logins on the runner machine, by its folder, as T3 Code's CLAUDE_CONFIG_DIR path. Its settings, hooks, plugins and MCP servers are turned off for these turns. Runnerbox never reads or copies your credentials, and the folder must be yours alone to write.",
+    homeTitle: "CLAUDE_CONFIG_DIR path",
+  },
+} as const;
+const signInOf = (driver: string) => (driver === "claude" ? SIGN_IN.claude : SIGN_IN.codex);
 
 export type AccountActions = {
   readonly save: (input: SaveProviderAccount) => Promise<unknown>;
@@ -34,10 +55,12 @@ export function ProviderAccountEditor({
   onDone: () => void;
 }) {
   const builtIn = account?.id === BUILT_IN_ACCOUNT_ID;
+  const signIn = signInOf(provider.driver);
+  const defaultHome = DEFAULT_HOME[provider.driver] ?? "~";
   const [label, setLabel] = useState(account?.label ?? `${provider.label}, ${provider.acceptsKeys === false ? "sign-in" : "API"}`);
   const [model, setModel] = useState(account?.model ?? DEFAULT_MODEL);
   const [apiKey, setApiKey] = useState("");
-  // null: Runnerbox's own home for the CLI. A path: the owner's own login, which the CLI is pointed at.
+  // null: the default login for the CLI. A path: another of the owner's logins, which the CLI is pointed at.
   const [home, setHome] = useState<string | null>(account?.home ?? null);
   const [busy, setBusy] = useState(false);
   // Saving or removing closes the editor; making the account the default keeps it open.
@@ -52,6 +75,9 @@ export function ProviderAccountEditor({
   const listed = provider.models.length > 0;
   // A model saved before the picker, that the server doesn't offer, stays visible rather than silently going.
   const models = listed && account?.model && !provider.models.some((each) => each.id === account.model) ? [...provider.models, { id: account.model, label: `${account.model} (not offered)` }] : provider.models;
+  // A key bills the account, so a login folder only matters without one; the built-in account is the machine's own login.
+  const keyed = apiKey.trim() !== "" || account?.keyLast4 != null;
+  const takesHome = provider.ownerLogin === true && !builtIn && !keyed;
   const modelLabel = (id: string) => (id === DEFAULT_MODEL ? `${provider.label} default` : (models.find((each) => each.id === id)?.label ?? id));
   const save = () =>
     act(() =>
@@ -61,7 +87,7 @@ export function ProviderAccountEditor({
         label: label.trim(),
         model: model.trim() === DEFAULT_MODEL ? null : model.trim(),
         ...(apiKey.trim() === "" ? {} : { apiKey: apiKey.trim() }),
-        ...(provider.ownerLogin ? { home: home === null ? null : home.trim() || DEFAULT_HOME } : {}),
+        ...(provider.ownerLogin && !builtIn ? { home: home === null || keyed ? null : home.trim() || defaultHome } : {}),
       }),
     );
   return (
@@ -107,32 +133,28 @@ export function ProviderAccountEditor({
           }
         />
       )}
-      {provider.ownerLogin ? (
+      {takesHome ? (
         <SettingsRow
           title="Sign-in"
-          description={
-            home === null
-              ? `Runnerbox's own ${provider.label} home, signed in with \`runnerbox codex-login\` on the runner machine.`
-              : `Your own ${provider.label} login, used by pointing ${provider.label} at your home. Your MCP servers and hooks there are turned off for these turns and your global AGENTS.md may load but grants nothing. Runnerbox never reads or copies your credentials, and the home must be yours alone to write.`
-          }
+          description={home === null ? signIn.ownWords : signIn.mineWords}
           control={
-            <Select value={home === null ? "own" : "mine"} onValueChange={(value) => setHome(value === "mine" ? (account?.home ?? DEFAULT_HOME) : null)}>
+            <Select value={home === null ? "own" : "mine"} onValueChange={(value) => setHome(value === "mine" ? (account?.home ?? defaultHome) : null)}>
               <SelectTrigger className="w-64" size="sm">
-                <SelectValue>{() => (home === null ? "Runnerbox's own home" : `My ${provider.label} login`)}</SelectValue>
+                <SelectValue>{() => (home === null ? signIn.own : signIn.mine)}</SelectValue>
               </SelectTrigger>
               <SelectPopup>
-                <SelectItem value="own">Runnerbox's own home</SelectItem>
-                <SelectItem value="mine">My {provider.label} login</SelectItem>
+                <SelectItem value="own">{signIn.own}</SelectItem>
+                <SelectItem value="mine">{signIn.mine}</SelectItem>
               </SelectPopup>
             </Select>
           }
         />
       ) : null}
-      {provider.ownerLogin && home !== null ? (
+      {takesHome && home !== null ? (
         <SettingsRow
-          title={`${provider.label} home`}
+          title={signIn.homeTitle}
           description="Where your login lives on the runner machine."
-          control={<Input value={home} onValueChange={setHome} placeholder={DEFAULT_HOME} className="w-64" size="sm" font="mono" />}
+          control={<Input value={home} onValueChange={setHome} placeholder={defaultHome} className="w-64" size="sm" font="mono" />}
         />
       ) : null}
       <SettingsRow

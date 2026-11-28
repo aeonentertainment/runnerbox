@@ -25,7 +25,9 @@ export const HARNESSES = {
   claude: {
     label: "Claude",
     acceptsKeys: true,
-    ownerLogin: false,
+    // A login folder other than the machine's own, as T3 Code's CLAUDE_CONFIG_DIR path, so each of
+    // the owner's Claude accounts can be its own provider account.
+    ownerLogin: true,
     efforts: CLAUDE_EFFORTS,
     models: [
       { id: "haiku", label: "Haiku", efforts: CLAUDE_EFFORTS },

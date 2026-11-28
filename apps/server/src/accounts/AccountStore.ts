@@ -23,9 +23,11 @@ import type { TurnAccount } from "../threads/provider/ProviderAdapter.ts";
 const OtherDriver = Schema.Literals(["codex"]);
 const stored = <D extends Schema.Top>(driver: D) =>
   Schema.Struct({ id: Schema.String, driver, label: Schema.String, model: Schema.NullOr(Schema.String), apiKey: Schema.NullOr(Schema.String) });
-const ClaudeAccount = stored(ProviderDriver);
-// `home`: the owner's own CLI home, as typed, when the account uses their login rather than Runnerbox's.
-const OtherAccount = Schema.Struct({ ...stored(OtherDriver).fields, home: Schema.optionalKey(Schema.NullOr(Schema.String)) });
+// `home`: the owner's own login folder, as typed, when the account uses one: a Codex home rather
+// than Runnerbox's own, or a Claude config folder rather than the machine's default login.
+const home = { home: Schema.optionalKey(Schema.NullOr(Schema.String)) };
+const ClaudeAccount = Schema.Struct({ ...stored(ProviderDriver).fields, ...home });
+const OtherAccount = Schema.Struct({ ...stored(OtherDriver).fields, ...home });
 type StoredAccount = typeof ClaudeAccount.Type | typeof OtherAccount.Type;
 
 const AccountsFile = Schema.Struct({
@@ -49,7 +51,7 @@ const builtIn = (file: AccountsFile): typeof ClaudeAccount.Type => ({ id: BUILT_
 // The account a turn resolves to: the given ID, or the default, which falls back to the built-in
 // when the default was removed or its driver doesn't run here.
 export type ResolvedAccount = TurnAccount & { readonly id: string; readonly driver: Driver };
-const homeOf = (account: StoredAccount) => ("home" in account ? (account.home ?? null) : null);
+const homeOf = (account: StoredAccount) => account.home ?? null;
 // Adds an account, or changes one when `id` is given, on any driver the store keeps.
 export type SaveInput = { readonly id?: string; readonly driver: Driver; readonly label: string; readonly model: string | null; readonly apiKey?: string; readonly home?: string | null };
 
@@ -145,7 +147,7 @@ const make = Effect.gen(function* () {
   const saveAny = Effect.fn("AccountStore.saveAny")(function* (input: SaveInput) {
     const saved = yield* update((files): Effect.Effect<readonly [Files, StoredAccount], AccountError> => {
       if (input.id === BUILT_IN_ACCOUNT_ID) {
-        if (input.apiKey !== undefined || input.driver !== "claude") return Effect.fail(new AccountError({ reason: "built_in" }));
+        if (input.apiKey !== undefined || typeof input.home === "string" || input.driver !== "claude") return Effect.fail(new AccountError({ reason: "built_in" }));
         const claude = { ...files.claude, builtInModel: input.model };
         return Effect.succeed([{ ...files, claude }, builtIn(claude)] as const);
       }
@@ -153,7 +155,14 @@ const make = Effect.gen(function* () {
       if (input.driver === "claude") {
         const existing = input.id === undefined ? undefined : files.claude.accounts.find((account) => account.id === input.id);
         if (input.id !== undefined && !existing) return Effect.fail(new AccountError({ reason: "not_found" }));
-        const account = { id: existing?.id ?? newId(), driver: input.driver, label: input.label, model: input.model, apiKey: input.apiKey ?? existing?.apiKey ?? null };
+        const account = {
+          id: existing?.id ?? newId(),
+          driver: input.driver,
+          label: input.label,
+          model: input.model,
+          apiKey: input.apiKey ?? existing?.apiKey ?? null,
+          home: input.home === undefined ? (existing?.home ?? null) : input.home,
+        };
         const accounts = existing ? files.claude.accounts.map((each) => (each.id === account.id ? account : each)) : [...files.claude.accounts, account];
         return Effect.succeed([{ ...files, claude: { ...files.claude, accounts } }, account] as const);
       }

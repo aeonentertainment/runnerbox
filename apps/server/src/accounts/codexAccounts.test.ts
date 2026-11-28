@@ -3,7 +3,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { openSession, pairWithCode } from "@runnerbox/client-runtime";
-import { ALL_SCOPES } from "@runnerbox/contracts";
+import { ALL_SCOPES, BUILT_IN_ACCOUNT_ID } from "@runnerbox/contracts";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Stream from "effect/Stream";
@@ -127,19 +127,22 @@ test("a Codex account keyed before Codex refused keys never hands its key to a t
   }
 });
 
-test("a Codex account can use the owner's own Codex login by its home; Claude's can't, and no home is ever a credential", async () => {
+test("Codex and Claude accounts can each use one of the owner's own logins by its folder, though not the built-in one, and no folder is ever a credential", async () => {
   const server = await startTestServer({ provider: makeFakeProvider({ turns: [] }), codex: codex() });
   try {
-    const { saved, refused, listed } = await withClient(server, (client) =>
+    const { saved, second, refused, listed } = await withClient(server, (client) =>
       Effect.gen(function* () {
         const saved = yield* client["providers.save"]({ driver: "codex", label: "Codex, my login", model: null, home: "~/.codex" });
-        const refused = yield* Effect.flip(client["providers.save"]({ driver: "claude", label: "Claude, home", model: null, home: "~/.claude" }));
-        return { saved, refused, listed: yield* client["providers.list"]() };
+        const second = yield* client["providers.save"]({ driver: "claude", label: "Claude, Aeon", model: null, home: "~/.claude_second" });
+        const refused = yield* Effect.flip(client["providers.save"]({ id: BUILT_IN_ACCOUNT_ID, driver: "claude", label: "Claude, subscription", model: null, home: "~/.claude_second" }));
+        return { saved, second, refused, listed: yield* client["providers.list"]() };
       }),
     );
-    assert.equal(saved.home, "~/.codex");
-    assert.equal(refused._tag === "AccountError" && refused.reason, "no_owner_login");
-    assert.deepEqual(listed.map((provider) => provider.ownerLogin), [false, true]);
+    assert.deepEqual([saved.home, second.home], ["~/.codex", "~/.claude_second"]);
+    assert.equal(refused._tag === "AccountError" && refused.reason, "built_in", "the built-in account is the machine's own login");
+    assert.deepEqual(listed.map((provider) => provider.ownerLogin), [true, true]);
+    const claudeFile = await readFile(join(server.stateDir, ".server", "accounts.json"), "utf8");
+    assert.ok(claudeFile.includes("~/.claude_second"), "Claude's accounts stay in accounts.json");
   } finally {
     await server.close();
   }

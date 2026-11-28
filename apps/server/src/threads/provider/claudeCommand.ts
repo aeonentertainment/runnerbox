@@ -59,9 +59,12 @@ const CLAUDE_PASSED = new Set(["CLAUDE_CONFIG_DIR"]);
 const TOOL_TIMEOUT_MS = (MAX_COMMAND_SECONDS + 60) * 1000;
 
 // `apiKey` is the turn's account's own key, the only credential that reaches `claude` from runnerbox.
-export function claudeEnv(from: Record<string, string | undefined>, apiKey: string | null = null) {
+// `home` is the login folder the account names, after T3 Code's CLAUDE_CONFIG_DIR path: it replaces
+// the server's own, so one machine can hold two Claude logins.
+export function claudeEnv(from: Record<string, string | undefined>, apiKey: string | null = null, home: string | null = null) {
   return {
     ...passedEnv(from, CLAUDE_PASSED),
+    ...(home === null ? {} : { CLAUDE_CONFIG_DIR: home }),
     ...(apiKey === null ? {} : { ANTHROPIC_API_KEY: apiKey }),
     // claude.ai connectors are found outside the MCP config, so strict mode doesn't cover them.
     ENABLE_CLAUDEAI_MCP_SERVERS: "false",

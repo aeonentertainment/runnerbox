@@ -166,7 +166,7 @@
     "apps/server/src/rpc/ws.ts": {"relation":"follows","upstream":["apps/server/src/ws.ts","apps/server/src/auth/EnvironmentAuth.ts"],"commit":"3a8c250cb0c8056f2f563091fd412fe5db809fa1"},
     "apps/server/src/threads/provider/CodexAdapter.ts": {"relation":"follows","upstream":"apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts","commit":"bdf6c6ec890114373079a164e3f5f5aa4347cb21"},
     "apps/server/src/threads/provider/Drivers.ts": {"relation":"follows","upstream":"apps/server/src/provider/Drivers","commit":"7462f234e89027943cf0d1a73d3ae1f36571d4e3"},
-    "apps/server/src/threads/provider/claudeCommand.ts": {"relation":"follows","upstream":"apps/server/src/provider/ClaudeProvider.ts","commit":"9c96180aa3e0d216abf7b4eaa5e6e03f4cc18541"},
+    "apps/server/src/threads/provider/claudeCommand.ts": {"relation":"follows","upstream":["apps/server/src/provider/ClaudeProvider.ts","apps/server/src/provider/Drivers/ClaudeHome.ts"],"commit":"9ceb8bfbecd06769db19eff0dd852d7d23226a0b"},
     "apps/server/src/threads/provider/codexAppServer.ts": {"relation":"follows","upstream":["apps/server/src/textGeneration/CodexTextGeneration.ts","apps/server/src/mcp/McpToolExposure.ts"],"commit":"62ee1039960d0adb70347ffd252faf6783116aa9"},
     "apps/server/src/threads/provider/harnesses.ts": {"relation":"follows","upstream":"apps/server/src/provider/CodexProvider.ts","note":"the effort levels' names"},
     "apps/server/src/threads/provider/loginHome.ts": {"relation":"follows","upstream":"apps/server/src/provider/Drivers/CodexHomeLayout.ts","commit":"0b489dada1f00db39c99074239c09c006f223aee"},

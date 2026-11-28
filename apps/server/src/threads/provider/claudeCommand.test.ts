@@ -112,6 +112,12 @@ test("an API account's own key is the one credential passed on", () => {
   assert.equal("ANTHROPIC_API_KEY" in claudeEnv({ PATH: "/usr/bin", ANTHROPIC_API_KEY: "sk-ant-ambient" }), false);
 });
 
+test("an account's login folder replaces the server's CLAUDE_CONFIG_DIR, so each account runs as its own login", () => {
+  const server = { PATH: "/usr/bin", CLAUDE_CONFIG_DIR: "/home/example/.claude" };
+  assert.equal(claudeEnv(server).CLAUDE_CONFIG_DIR, "/home/example/.claude");
+  assert.equal(claudeEnv(server, null, "/home/example/.claude_second").CLAUDE_CONFIG_DIR, "/home/example/.claude_second");
+});
+
 test("the turn's MCP config names one HTTP server, and the prompt goes on stdin", () => {
   assert.deepEqual(JSON.parse(mcpConfig("http://127.0.0.1:4517/mcp", "rbx_turn")), {
     mcpServers: { runnerbox: { type: "http", url: "http://127.0.0.1:4517/mcp", headers: { Authorization: "Bearer rbx_turn" } } },
