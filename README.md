@@ -65,8 +65,11 @@ Copy [`runnerbox.vm.example.json`](runnerbox.vm.example.json) to start. `render`
 ```bash
 docker build -t runnerbox-base image   # in the VM
 docker build -t runnerbox-base-docker image/docker   # in the VM, for kinds with "docker": true
+docker build -t runnerbox-dev image/dev   # in the VM, optional: one image for most repos
 node runnerbox.js up --config /path/to/config.json   # on the host, never inside the VM
 ```
+
+`runnerbox-dev` adds what most projects' jobs use to the base: Node with pnpm, bun and EAS, Python with uv, Rust, Playwright's system libraries (not its browsers), gh and the AWS CLI. With it, one kind can serve every repository, and only a project with heavier needs builds its own image `FROM` it.
 
 Copy [`runnerbox.example.json`](runnerbox.example.json) to start. To run it as a service, use [`deploy/runnerbox@.service`](deploy/runnerbox@.service).
 
