@@ -1,14 +1,15 @@
+import { fixFor } from "./fixes.ts";
+import { VM_PACKAGES } from "./vm-packages.ts";
 import type { Probe } from "./probe.ts";
 import { ok, type SetupCheck, type SetupFix, type SetupStep } from "./setup-check.ts";
 import { anyFileHas } from "./settings-files.ts";
 
-export const VM_PACKAGES = ["qemu-system-x86", "qemu-utils", "libvirt-daemon-system", "virtinst", "xorriso", "curl"];
 const GROUPS = ["libvirt", "kvm"];
 
 // What the README's VM setup asks of the host, plus the storage pool a fresh libvirt lacks and
 // linger, which starts the user's services at boot without a login.
 export async function vmToolsStep(probe: Probe): Promise<SetupStep> {
-  const fix: SetupFix = { id: "vm-tools", sudo: true };
+  const fix = fixFor("vm-tools");
   return { id: "vm-tools", title: "VM tools", checks: [await packages(probe, fix), await bridgeFilter(probe, fix), await groups(probe, fix), await pool(probe), await linger(probe)] };
 }
 
@@ -52,12 +53,12 @@ async function pool(probe: Probe): Promise<SetupCheck> {
   }
   const field = (name: string) => new RegExp(`^${name}:\\s*(\\S+)`, "m").exec(stdout)?.[1];
   if (code === 0 && field("State") === "running" && field("Autostart") === "yes") return ok("pool", title);
-  return { id: "pool", title, verdict: "fixable", detail: code === 0 ? "It exists but isn't running and started at boot." : "There's no default pool, so the VM has nowhere for its disks.", fix: { id: "storage-pool", sudo: true } };
+  return { id: "pool", title, verdict: "fixable", detail: code === 0 ? "It exists but isn't running and started at boot." : "There's no default pool, so the VM has nowhere for its disks.", fix: fixFor("storage-pool") };
 }
 
 async function linger(probe: Probe): Promise<SetupCheck> {
   const title = "Services start at boot without a login";
   const { stdout } = await probe.run("loginctl", ["show-user", probe.user, "-p", "Linger"]);
   if (stdout.trim() === "Linger=yes") return ok("linger", title);
-  return { id: "linger", title, verdict: "fixable", detail: "Without linger, runnerbox's services stop when you log out and don't start until you log in.", fix: { id: "linger", sudo: true } };
+  return { id: "linger", title, verdict: "fixable", detail: "Without linger, runnerbox's services stop when you log out and don't start until you log in.", fix: fixFor("linger") };
 }

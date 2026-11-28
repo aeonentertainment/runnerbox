@@ -8,7 +8,7 @@ export function formatSetup(steps: SetupStep[]) {
   for (const step of steps) {
     lines.push(step.title);
     for (const check of step.checks) {
-      const fix = check.fix ? `  (fix: ${check.fix.id}${check.fix.sudo ? ", needs sudo" : ""})` : "";
+      const fix = check.fix ? `  (runnerbox setup fix ${check.fix.id}${check.fix.sudo ? ", sudo" : ""})` : "";
       lines.push(`  ${MARK[check.verdict].padEnd(4)}  ${check.title}${check.verdict === "fixable" ? fix : ""}`);
       if (check.detail && check.verdict !== "ok") lines.push(`        ${check.detail}`);
     }

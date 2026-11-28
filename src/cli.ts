@@ -6,7 +6,9 @@ import { releaseRepository } from "../apps/server/src/update/releaseRepository.t
 import { createGitHubClient, REPO_NAME, resolveToken } from "./github/github-client.ts";
 import { renderHost } from "./host/render-host.ts";
 import { checkMachine, isReady } from "./setup/check-machine.ts";
+import { FIXES, fixScript, isFixId } from "./setup/fixes.ts";
 import { formatSetup } from "./setup/format-setup.ts";
+import { runFix } from "./setup/run-fix.ts";
 import { createLocalProbe } from "./setup/probe.ts";
 import { loadLauncherConfig } from "./launcher/launcher-config.ts";
 import { startRunners } from "./launcher/start-runners.ts";
@@ -29,6 +31,7 @@ import { loadVmConfig } from "./vm/vm-config.ts";
 const USAGE = `Usage:
   runnerbox up --config <file>
   runnerbox setup check [--json]
+  runnerbox setup fix <fix> [--print]
   runnerbox vm render --config <file> --out <dir>
   runnerbox host render --config <file> --out <dir>
   runnerbox report --repo <owner/name> [options]
@@ -38,6 +41,8 @@ const USAGE = `Usage:
 
 up: keeps runners waiting for jobs in the VM until stopped.
 setup check: reads whether this machine is ready to host runnerbox's VM, and why not. Changes nothing.
+setup fix: runs one fix that setup check names, as root through sudo. --print shows its script instead.
+  Without a terminal, the first line of stdin is the sudo password, or empty when sudo needs none.
 vm render: writes the VM's cloud-init seed, firewall and a create.sh to run on the host.
 host render: for an install whose jobs run on this Mac's own OS, writes a setup.sh to run with sudo.
 summary: markdown from the local logs alone: the slowest jobs, what \`up\` did, and how close
@@ -75,6 +80,7 @@ async function main() {
       by: { type: "string", default: "labels" },
       redact: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
+      print: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
       version: { type: "boolean", default: false },
     },
@@ -91,6 +97,20 @@ async function main() {
   if (positionals[0] === "setup" && positionals[1] === "check" && positionals.length === 2) {
     const steps = await checkMachine(createLocalProbe());
     return console.log(values.json ? JSON.stringify({ ready: isReady(steps), steps }) : formatSetup(steps));
+  }
+
+  if (positionals[0] === "setup" && positionals[1] === "fix" && positionals.length === 3) {
+    const id = positionals[2] ?? "";
+    if (!isFixId(id)) throw new Error(`No fix called "${id}". Fixes: ${Object.keys(FIXES).join(", ")}.`);
+    const probe = createLocalProbe();
+    if (values.print) return process.stdout.write(fixScript(id, probe.user));
+    console.error(`${FIXES[id].title}, as root.`);
+    const code = await runFix({ id, user: probe.user, input: process.stdin });
+    if (code !== 0) {
+      process.exitCode = code;
+      return console.error(`The fix stopped with exit code ${code}. Nothing after the failed command ran.`);
+    }
+    return console.log(formatSetup(await checkMachine(probe)));
   }
 
   if (positionals[0] === "vm" && positionals[1] === "render" && positionals.length === 2 && values.config && values.out) {
