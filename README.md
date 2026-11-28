@@ -44,6 +44,8 @@ Jobs run in containers inside one VM, behind a libvirt network filter. The host 
 
 `runnerbox setup check` reads whether an Ubuntu host has all of that and more: KVM, sleep turned off, Wi-Fi power saving, the libvirt groups and storage pool, linger, and unattended updates with a nightly restart. It changes nothing, and names what needs fixing and whether that takes sudo. `--json` prints the same for scripts and the app. Things only a person can change, such as graphics memory reserved in the BIOS or a passphrase at boot, show as notes.
 
+`runnerbox setup fix <fix>` runs one of the fixes it names, as root through sudo, then checks again. Each fix is a short fixed script that's safe to run twice; `--print` shows it instead, to read or run yourself. Without a terminal, the first line of stdin is the sudo password (empty when sudo needs none), so a script or the app can run a fix over SSH without storing it.
+
 ```bash
 ssh-keygen -t ed25519 -N '' -f ~/.config/runnerbox/vm_key
 node runnerbox.js vm render --config vm.json --out ~/.local/share/runnerbox/vm

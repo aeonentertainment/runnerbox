@@ -1,3 +1,4 @@
+import { fixFor } from "./fixes.ts";
 import type { Probe } from "./probe.ts";
 import { ok, type SetupCheck, type SetupStep } from "./setup-check.ts";
 import { networkManagerSetting } from "./settings-files.ts";
@@ -17,7 +18,7 @@ async function powerSave(probe: Probe, hasWifi: boolean): Promise<SetupCheck> {
   if (!hasWifi) return skipped("wifi-powersave", title);
   // 2 is NetworkManager's "disable".
   if ((await networkManagerSetting(probe, "wifi.powersave")) === "2") return ok("wifi-powersave", title);
-  return { id: "wifi-powersave", title, verdict: "fixable", detail: "Power saving can add 100 ms or more to every packet and drop SSH sessions.", fix: { id: "wifi-powersave-off", sudo: true } };
+  return { id: "wifi-powersave", title, verdict: "fixable", detail: "Power saving can add 100 ms or more to every packet and drop SSH sessions.", fix: fixFor("wifi-powersave-off") };
 }
 
 async function joinsAtBoot(probe: Probe, hasWifi: boolean): Promise<SetupCheck> {
@@ -29,7 +30,7 @@ async function joinsAtBoot(probe: Probe, hasWifi: boolean): Promise<SetupCheck> 
   for (const name of names) {
     const { stdout } = await probe.run("nmcli", ["-g", "connection.permissions", "connection", "show", name]);
     if (stdout.trim() !== "") {
-      return { id: "wifi-all-users", title, verdict: "fixable", detail: `"${name}" is saved for one user, so it joins only after they log in.`, fix: { id: "wifi-all-users", sudo: true } };
+      return { id: "wifi-all-users", title, verdict: "fixable", detail: `"${name}" is saved for one user, so it joins only after they log in.`, fix: fixFor("wifi-all-users") };
     }
   }
   return ok("wifi-all-users", title);

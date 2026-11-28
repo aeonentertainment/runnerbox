@@ -1,3 +1,4 @@
+import { fixFor } from "./fixes.ts";
 import { ok, type SetupCheck, type SetupStep } from "./setup-check.ts";
 import type { Probe } from "./probe.ts";
 
@@ -86,7 +87,7 @@ async function sleep(probe: Probe): Promise<SetupCheck> {
   const { stdout } = await probe.run("systemctl", ["is-enabled", ...SLEEP_TARGETS]);
   const states = stdout.trim().split("\n");
   if (states.length === SLEEP_TARGETS.length && states.every((state) => state === "masked")) return ok("sleep", title);
-  return { id: "sleep", title, verdict: "fixable", detail: "The login screen suspends an idle machine after about 20 minutes, which takes its runners offline.", fix: { id: "mask-sleep", sudo: true } };
+  return { id: "sleep", title, verdict: "fixable", detail: "The login screen suspends an idle machine after about 20 minutes, which takes its runners offline.", fix: fixFor("mask-sleep") };
 }
 
 // Not needed, since runnerbox's services start at boot with linger, and it hands the desktop to anyone at the keyboard.
