@@ -9,6 +9,7 @@ import { installPaths } from "../host/install-paths.ts";
 import { buildInVm } from "../image/build-in-vm.ts";
 import { hashContext } from "../image/context-hash.ts";
 import { createImageKeeper } from "../image/image-keeper.ts";
+import { createSharedBuilds } from "../image/shared-builds.ts";
 import { withRebuildPeriod } from "../image/rebuild-period.ts";
 import { parseProbe, probeCommand, type Tool } from "../image/tool-probe.ts";
 import type { InTurn } from "../jobvm/in-turn.ts";
@@ -221,6 +222,7 @@ export async function startRunners(configPath: string) {
     // With job VMs, the VM in the config only builds images, and it does one thing at a time.
     const jobVms = config.jobVms ? await startJobVms(config, config.jobVms) : null;
     const inBuilder: InTurn = jobVms?.inBuilder ?? ((task) => task());
+    const sharedBuild = createSharedBuilds();
     await Promise.all(
       config.runners.map(async (runner, index) => {
         const recordForType: RecordEvent = (event) => record({ ...event, runnerType: runner.name });
@@ -229,7 +231,7 @@ export async function startRunners(configPath: string) {
           built: (ok) => slotState.built(runner.name, ok),
           probed: (tag, facts) => slotState.probed(runner.name, tag, facts),
         };
-        const image = await keepImage(config, runner, () => roomForJob(installFloor, "an image build"), recordForType, () => stopping, imageState, inBuilder);
+        const image = await keepImage(config, runner, () => roomForJob(installFloor, "an image build"), recordForType, () => stopping, imageState, inBuilder, sharedBuild);
         // Draining before this kind's image was ever ready, so it has no slots to wait for.
         if (!image) return;
         images.set(runner.name, image.current);
@@ -264,6 +266,8 @@ export async function startRunners(configPath: string) {
   process.exit(0);
 }
 
+type SharedBuild = ReturnType<typeof createSharedBuilds>;
+
 // One kind's image, as the live state file shows it.
 type ImageState = {
   image: (current: string | null, building: string | null) => void;
@@ -284,6 +288,7 @@ async function keepImage(
   state: ImageState,
   // Gives a task the VM to itself. With job VMs, a disk copy shuts it down between tasks.
   inBuilder: InTurn,
+  sharedBuild: SharedBuild,
 ) {
   const { vm } = config;
   const { image } = runner;
@@ -300,7 +305,7 @@ async function keepImage(
     build: async (tag) => {
       onImage(keeper.current(), tag);
       try {
-        const ok = await inBuilder(() => buildInVm({ vm, context: image.context, tag, noCache: image.rebuildDays !== undefined }));
+        const ok = await sharedBuild(tag, () => inBuilder(() => buildInVm({ vm, context: image.context, tag, noCache: image.rebuildDays !== undefined })));
         state.built(ok);
         return ok;
       } finally {

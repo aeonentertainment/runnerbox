@@ -8,6 +8,7 @@ import { buildInVm } from "./build-in-vm.ts";
 import { hashContext } from "./context-hash.ts";
 import { createImageKeeper } from "./image-keeper.ts";
 import { withRebuildPeriod } from "./rebuild-period.ts";
+import { createSharedBuilds } from "./shared-builds.ts";
 
 const dir = await mkdtemp(join(tmpdir(), "runnerbox-image-"));
 after(() => rm(dir, { recursive: true }));
@@ -138,4 +139,24 @@ test("rebuildDays gives the image a new tag when a period starts, and only then"
   assert.equal(withRebuildPeriod("files", 7, start), withRebuildPeriod("files", 7, start + 7 * day - 1));
   assert.notEqual(withRebuildPeriod("files", 7, start), withRebuildPeriod("files", 7, start + 7 * day));
   assert.notEqual(withRebuildPeriod("files", 7, start), withRebuildPeriod("other", 7, start));
+});
+
+test("kinds asking for the same tag at once share one build", async () => {
+  const shared = createSharedBuilds();
+  let builds = 0;
+  let finish = (_ok: boolean) => {};
+  const build = () => {
+    builds++;
+    return new Promise<boolean>((resolve) => (finish = resolve));
+  };
+  const first = shared("app:aaaa", build);
+  const second = shared("app:aaaa", build);
+  const other = shared("app:bbbb", async () => (builds++, true));
+  finish(true);
+  assert.deepEqual(await Promise.all([first, second, other]), [true, true, true]);
+  assert.equal(builds, 2);
+
+  // Once it settles, the next ask builds again, so a failed build is retried.
+  await shared("app:aaaa", async () => (builds++, false));
+  assert.equal(builds, 3);
 });
