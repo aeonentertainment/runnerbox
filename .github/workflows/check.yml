@@ -45,3 +45,6 @@ jobs:
       - run: docker run --rm --entrypoint bash runnerbox-base -c '/opt/hostedtoolcache/node/*/x64/bin/node --version'
       - run: docker build -t runnerbox-base-docker image/docker
       - run: docker run --rm --entrypoint bash runnerbox-base-docker -c 'docker --version && docker compose version'
+      - run: docker build -t runnerbox-dev image/dev
+      # Each tool runs as the image's own user, the way a job's steps would.
+      - run: docker run --rm --entrypoint bash runnerbox-dev -c 'node --version && pnpm --version && eas --version && bun --version && python3 --version && uv --version && cargo --version && cargo clippy --version && gh --version && aws --version'
